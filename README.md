@@ -9,7 +9,6 @@ Replace Discord stream preview with your own custom images. Support for slidesho
 -  Random or sequential slide order
 -  Images stored locally (up to 50 images)
 -  Quick access via account panel button
--  Automatic image processing (1280x720, optimized for Discord)
 -  Real-time timer showing time since last change
 -  Drag & drop support for reordering images
 
