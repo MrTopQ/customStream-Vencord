@@ -1,23 +1,19 @@
-# Custom Stream
+# CustomStreamTopQ
 
-Replace Discord stream preview with your own custom images. Support for slideshow with automatic rotation every ~5 minutes.
+Discord plugin that replaces default stream preview with custom images. Features profiles system and automatic slideshow rotation.
 
-##  Features
-
--  Upload and manage up to 50 custom images
--  Automatic slideshow mode with ~5 minute intervals
--  Random or sequential slide order
--  Images stored locally (up to 50 images)
--  Quick access via account panel button
--  Real-time timer showing time since last change
--  Drag & drop support for reordering images
-
-##  Screenshots
+## Features
+- **Profiles System**: Create up to 5 profiles with 50 images each
+- **Automatic Slideshow**: Images rotate every ~5 minutes (Discord controlled)  
+- **Sequential/Random**: Choose slide order per profile
+- **Local Storage**: Images stored in IndexedDB, no external servers
+- **Panel Button**: Quick access button next to microphone controls
 
 ### Panel Button
 Quick access button in the account panel showing current status:
 
 ![Panel Button](screenshots/panel-button.png)
+![Panel Button1](screenshots/panel-button1.png)
 
 ### Gallery Modal
 Manage your stream preview images with an intuitive interface:
