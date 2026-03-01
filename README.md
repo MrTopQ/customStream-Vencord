@@ -1,4 +1,4 @@
-# CustomStreamTopQ
+# СustomStream-Vencord
 
 Discord plugin that replaces default stream preview with custom images. Features profiles system and automatic slideshow rotation.
 
