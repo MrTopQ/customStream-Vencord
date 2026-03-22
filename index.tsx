@@ -28,7 +28,7 @@ import { findComponentByCodeLazy } from "@webpack";
 import { Button, Menu, React, showToast, Text, Toasts, UserStore, useState, useEffect, useRef } from "@webpack/common";
 
 // Компонент кнопки в панели
-const PanelButton = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
+const PanelButton = findComponentByCodeLazy("render-self.3d-e-Y");
 
 const DATASTORE_KEY = "CustomStreamTopQ_ImageData";
 const DATASTORE_KEY_SLIDESHOW = "CustomStreamTopQ_Slideshow";
@@ -2185,11 +2185,10 @@ export default definePlugin({
     patches: [
         {
             // Патч для добавления кнопки в панель (рядом с микрофоном/наушниками)
-            find: ".DISPLAY_NAME_STYLES_COACHMARK),",
+            find: "\"avatarContainerClass\",\"userNameClassName\"",
             replacement: {
-                // Матчим начало массива children после чего угодно, главное чтобы был accountContainerRef дальше
-                match: /(children:\[)(.{0,150}?)(accountContainerRef)/,
-                replace: "$1$self.StreamPreviewPanelButton(arguments[0]),$2$3"
+                match: /(\((\i),\i\){.+?\.flipped])(:\i}\),children:\[)/,
+                replace: "$1$3$self.StreamPreviewPanelButton($2),"
             }
         },
         {
