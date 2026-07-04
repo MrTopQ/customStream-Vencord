@@ -2185,7 +2185,7 @@ export default definePlugin({
     patches: [
         {
             // Патч для добавления кнопки в панель (рядом с микрофоном/наушниками)
-            find: ".DISPLAY_NAME_STYLES_COACHMARK)",
+            find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
             replacement: {
                 // Матчим начало массива children после чего угодно, главное чтобы был accountContainerRef дальше
                 match: /(children:\[)(.{0,150}?)(accountContainerRef)/,
