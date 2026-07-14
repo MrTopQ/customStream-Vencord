@@ -12,7 +12,7 @@ Discord plugin that replaces default stream preview with custom images. Features
 - **Panel Button**: Quick access button next to microphone controls (can be hidden in plugin settings)
 
 ## Notes
-- **Your own preview shows your real screen** — that's the local capture, it never leaves your PC. The plugin replaces the thumbnail uploaded to Discord's servers, so viewers only ever see your custom image.
+- **Your own preview may show your real screen for the first minutes** — that's a local snapshot, it never leaves your PC and disappears after a while. Discord has already accepted your custom image: the plugin replaces the thumbnail uploaded to Discord's servers, so viewers only ever see it.
 - **Panel button disappeared after a Discord update?** The patch broke — a fix will be released here, update the plugin.
 
 ### Panel Button
