@@ -21,11 +21,10 @@ import { DataStore } from "@api/index";
 import { definePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { ImageIcon } from "@components/Icons";
-import { Alerts } from "@webpack/common";
-import { ModalCloseButton, ModalContent, ModalFooter, ModalHeader, ModalRoot, ModalSize, openModal } from "@utils/modal";
 import definePlugin, { OptionType } from "@utils/types";
+import { RenderModalProps } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Button, Menu, React, showToast, Text, Toasts, UserStore, useState, useEffect, useRef } from "@webpack/common";
+import { Alerts, Button, Menu, Modal, openModal, React, showToast, Text, Toasts, UserStore, useEffect, useRef, useState } from "@webpack/common";
 
 // Компонент кнопки в панели
 const PanelButton = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
@@ -34,6 +33,8 @@ const DATASTORE_KEY = "CustomStreamTopQ_ImageData";
 const DATASTORE_KEY_SLIDESHOW = "CustomStreamTopQ_Slideshow";
 const DATASTORE_KEY_INDEX = "CustomStreamTopQ_SlideIndex";
 const DATASTORE_KEY_PROFILES = "CustomStreamTopQ_Profiles";
+const DATASTORE_KEY_PROFILES_V2 = "CustomStreamTopQ_ProfilesV2";
+const DATASTORE_KEY_INDICES = "CustomStreamTopQ_SlideIndices";
 const DATASTORE_KEY_ACTIVE_PROFILE = "CustomStreamTopQ_ActiveProfile";
 const MAX_IMAGES = 50;
 const MAX_IMAGES_PER_PROFILE = 50;
@@ -61,6 +62,7 @@ let lastSlideChangeTime = 0; // Время последней смены сла�
 let isStreamActive = false; // Активен ли стрим сейчас
 let manualSlideChange = false; // Флаг ручной смены картинки через модалку
 let actualStreamImageUri: string | null = null; // Реальная картинка которая СЕЙЧАС на стриме (обновляется только Discord'ом)
+let shuffleBag: number[] = []; // Очередь индексов для random-режима: пока не показаны все картинки, повторов нет
 
 // Получить активный профиль
 function getActiveProfile(): Profile {
@@ -113,6 +115,11 @@ const settings = definePluginSettings({
         type: OptionType.BOOLEAN,
         description: "Show info badges in modal (count, selected, timer)",
         default: true
+    },
+    showPanelButton: {
+        type: OptionType.BOOLEAN,
+        description: "Show the quick access button in the account panel (bottom left). Note: if the button disappeared after a Discord update - it's not this toggle, an update with a fix will be released on GitHub: https://github.com/MrTopQ/customStream-Vencord",
+        default: true
     }
 });
 
@@ -138,65 +145,106 @@ interface StoredProfilesData {
     activeProfileId: string;
 }
 
+// Формат V2: Blob пишутся в IndexedDB напрямую (без конвертации в массивы байт),
+// индексы слайдов и активный профиль - отдельными ключами, чтобы смена слайда не переписывала картинки
+interface StoredProfileV2 {
+    id: string;
+    name: string;
+    images: Blob[];
+}
+
+interface StoredProfilesDataV2 {
+    profiles: StoredProfileV2[];
+}
+
 // Функции для работы с профилями
 async function saveProfilesToDataStore(): Promise<void> {
-    const storedProfiles: StoredProfile[] = [];
+    const storedProfiles: StoredProfileV2[] = [];
+    const indices: Record<string, number> = {};
 
     for (const [, profile] of profiles) {
-        const images: StoredImageData[] = [];
-        for (const blob of profile.images) {
-            const arrayBuffer = await blob.arrayBuffer();
-            const uint8Array = new Uint8Array(arrayBuffer);
-            images.push({
-                type: blob.type,
-                data: Array.from(uint8Array)
-            });
-        }
         storedProfiles.push({
             id: profile.id,
             name: profile.name,
-            images,
-            currentIndex: profile.currentIndex
+            images: profile.images
         });
+        indices[profile.id] = profile.currentIndex;
     }
 
-    await DataStore.set(DATASTORE_KEY_PROFILES, {
-        profiles: storedProfiles,
-        activeProfileId
-    });
+    await DataStore.set(DATASTORE_KEY_PROFILES_V2, { profiles: storedProfiles });
+    await DataStore.set(DATASTORE_KEY_INDICES, indices);
+    await DataStore.set(DATASTORE_KEY_ACTIVE_PROFILE, activeProfileId);
 
     syncCacheWithActiveProfile();
     notifyImageChange();
 }
 
+// Миграция с формата V1 (картинки как массивы байт). Возвращает true, если данные были и мигрированы
+async function migrateFromV1(): Promise<boolean> {
+    const dataV1: StoredProfilesData | undefined = await DataStore.get(DATASTORE_KEY_PROFILES);
+    if (!dataV1?.profiles?.length) return false;
+
+    profiles.clear();
+    for (const stored of dataV1.profiles) {
+        const blobs: Blob[] = [];
+        const dataUris: string[] = [];
+
+        for (const img of stored.images) {
+            const blob = new Blob([new Uint8Array(img.data)], { type: img.type });
+            blobs.push(blob);
+            dataUris.push(await blobToDataUrl(blob));
+        }
+
+        profiles.set(stored.id, {
+            id: stored.id,
+            name: stored.name,
+            images: blobs,
+            dataUris,
+            currentIndex: stored.currentIndex
+        });
+    }
+    activeProfileId = dataV1.activeProfileId && profiles.has(dataV1.activeProfileId)
+        ? dataV1.activeProfileId
+        : DEFAULT_PROFILE_ID;
+
+    // Сохраняем в V2 и удаляем старый ключ
+    await saveProfilesToDataStore();
+    await DataStore.del(DATASTORE_KEY_PROFILES);
+    console.log("[CustomStreamTopQ] Migrated storage to V2 (raw Blobs)");
+    return true;
+}
+
 async function loadProfilesFromDataStore(): Promise<void> {
     try {
-        const data: StoredProfilesData | undefined = await DataStore.get(DATASTORE_KEY_PROFILES);
+        const dataV2: StoredProfilesDataV2 | undefined = await DataStore.get(DATASTORE_KEY_PROFILES_V2);
 
-        if (data?.profiles?.length) {
+        if (dataV2?.profiles?.length) {
+            const indices: Record<string, number> = await DataStore.get(DATASTORE_KEY_INDICES) ?? {};
+            const storedActiveId: string | undefined = await DataStore.get(DATASTORE_KEY_ACTIVE_PROFILE);
+
             profiles.clear();
-            for (const stored of data.profiles) {
-                const blobs: Blob[] = [];
+            for (const stored of dataV2.profiles) {
                 const dataUris: string[] = [];
-
-                for (const img of stored.images) {
-                    const uint8Array = new Uint8Array(img.data);
-                    const blob = new Blob([uint8Array], { type: img.type });
-                    blobs.push(blob);
+                for (const blob of stored.images) {
                     dataUris.push(await blobToDataUrl(blob));
                 }
 
+                const savedIndex = indices[stored.id];
                 profiles.set(stored.id, {
                     id: stored.id,
                     name: stored.name,
-                    images: blobs,
+                    images: stored.images,
                     dataUris,
-                    currentIndex: stored.currentIndex
+                    currentIndex: typeof savedIndex === "number" && savedIndex < stored.images.length ? savedIndex : 0
                 });
             }
-            activeProfileId = data.activeProfileId || DEFAULT_PROFILE_ID;
+            activeProfileId = storedActiveId && profiles.has(storedActiveId)
+                ? storedActiveId
+                : DEFAULT_PROFILE_ID;
+        } else if (await migrateFromV1()) {
+            // Мигрировали с V1 (картинки хранились как массивы байт) - всё уже загружено
         } else {
-            // Миграция со старого формата
+            // Миграция с самого старого формата (один список картинок без профилей)
             const oldData: SlideshowData | undefined = await DataStore.get(DATASTORE_KEY_SLIDESHOW);
             if (oldData?.images?.length) {
                 const blobs: Blob[] = [];
@@ -292,6 +340,8 @@ function renameProfile(profileId: string, newName: string): boolean {
 function setActiveProfile(profileId: string): boolean {
     if (!profiles.has(profileId)) return false;
     activeProfileId = profileId;
+    shuffleBag = []; // Новый профиль - новый цикл случайного порядка
+    DataStore.set(DATASTORE_KEY_ACTIVE_PROFILE, profileId); // Фоново, без ожидания
     syncCacheWithActiveProfile();
     notifyImageChange();
     return true;
@@ -306,7 +356,13 @@ async function saveSlideIndex(index: number): Promise<void> {
     const profile = getActiveProfile();
     profile.currentIndex = index;
     currentSlideIndex = index;
-    await saveProfilesToDataStore();
+
+    // Пишем только индексы - картинки не пересохраняем (смена слайда каждые ~5 мин)
+    const indices: Record<string, number> = {};
+    for (const [, p] of profiles) {
+        indices[p.id] = p.currentIndex;
+    }
+    await DataStore.set(DATASTORE_KEY_INDICES, indices);
 }
 
 async function loadSlideIndex(): Promise<number> {
@@ -345,6 +401,27 @@ async function deleteImageAtIndex(index: number): Promise<void> {
 
     profile.images.splice(index, 1);
     profile.dataUris.splice(index, 1);
+
+    if (profile.currentIndex >= profile.images.length) {
+        profile.currentIndex = 0;
+    }
+
+    syncCacheWithActiveProfile();
+    await saveProfilesToDataStore();
+}
+
+async function deleteImagesAtIndices(indices: number[]): Promise<void> {
+    const profile = getActiveProfile();
+    // Удаляем с конца, чтобы индексы не съезжали
+    const sorted = indices
+        .filter(i => i >= 0 && i < profile.images.length)
+        .sort((a, b) => b - a);
+    if (sorted.length === 0) return;
+
+    for (const i of sorted) {
+        profile.images.splice(i, 1);
+        profile.dataUris.splice(i, 1);
+    }
 
     if (profile.currentIndex >= profile.images.length) {
         profile.currentIndex = 0;
@@ -449,7 +526,7 @@ async function processImage(blob: Blob): Promise<Blob> {
     });
 }
 
-function ImagePickerModal({ rootProps }: { rootProps: any; }) {
+function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
     // Сохраняем исходные значения для отката
     const initialSettingsRef = useRef({
         enabled: settings.store.replaceEnabled,
@@ -474,6 +551,8 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [streamActive, setStreamActive] = useState(isStreamActive);
     const [previewImage, setPreviewImage] = useState<string | null>(null); // Для полноэкранного просмотра
+    const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set()); // Мультивыделение (Ctrl/Shift+клик)
+    const lastClickedIndexRef = useRef(0); // Якорь для Shift-диапазона
 
     // Состояния для профилей
     const [profileList, setProfileList] = useState<Profile[]>(getProfileList());
@@ -516,6 +595,7 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
         setImages(uris);
         setPendingIndex(profile.currentIndex);
         setImageSizes(sizes);
+        setSelectedIndices(new Set()); // Список изменился - старое выделение невалидно
         setIsLoading(false);
     };
 
@@ -667,6 +747,34 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
         setIsLoading(false);
     };
 
+    // Вставка изображений из буфера обмена (Ctrl+V) пока открыта модалка
+    useEffect(() => {
+        const onPaste = (e: ClipboardEvent) => {
+            // Не перехватываем вставку текста в поля ввода (имя профиля и т.п.)
+            const target = e.target as HTMLElement | null;
+            if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            const files: File[] = [];
+            for (const item of items) {
+                if (item.kind === "file" && item.type.startsWith("image/") && item.type !== "image/gif") {
+                    const file = item.getAsFile();
+                    if (file) files.push(file);
+                }
+            }
+
+            if (files.length > 0) {
+                e.preventDefault();
+                handleDroppedFiles(files);
+            }
+        };
+
+        document.addEventListener("paste", onPaste);
+        return () => document.removeEventListener("paste", onPaste);
+    }, [currentProfileId]);
+
     const handleDragOver = (e: React.DragEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -788,6 +896,56 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
         setPendingIndex(index);
     };
 
+    // Клик по картинке: обычный - выбрать текущей, Ctrl - добавить/убрать из выделения, Shift - диапазон
+    const handleImageClick = (e: React.MouseEvent, index: number) => {
+        if (e.ctrlKey || e.metaKey) {
+            setSelectedIndices(prev => {
+                const next = new Set(prev);
+                if (next.has(index)) next.delete(index);
+                else next.add(index);
+                return next;
+            });
+            lastClickedIndexRef.current = index;
+            return;
+        }
+        if (e.shiftKey) {
+            const start = Math.min(lastClickedIndexRef.current, index);
+            const end = Math.max(lastClickedIndexRef.current, index);
+            setSelectedIndices(prev => {
+                const next = new Set(prev);
+                for (let i = start; i <= end; i++) next.add(i);
+                return next;
+            });
+            return;
+        }
+        setSelectedIndices(new Set());
+        lastClickedIndexRef.current = index;
+        handleSelectCurrent(index);
+    };
+
+    const handleDeleteSelected = () => {
+        const count = selectedIndices.size;
+        if (count === 0) return;
+
+        Alerts.show({
+            title: `Delete ${count} selected image${count > 1 ? "s" : ""}?`,
+            body: "This action cannot be undone.",
+            confirmText: "Delete",
+            cancelText: "Cancel",
+            confirmColor: "red",
+            onConfirm: async () => {
+                await deleteImagesAtIndices(Array.from(selectedIndices));
+                const profile = profiles.get(currentProfileId) || getActiveProfile();
+                if (pendingIndex >= profile.images.length) {
+                    setPendingIndex(Math.max(0, profile.images.length - 1));
+                }
+                await loadImages();
+                setProfileList(getProfileList());
+                showToast(`Deleted: ${count}`, Toasts.Type.MESSAGE);
+            }
+        });
+    };
+
     const togglePlugin = () => {
         setPluginEnabled(!pluginEnabled);
     };
@@ -851,20 +1009,18 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
         e.stopPropagation();
 
         if (draggedIndex !== null && draggedIndex !== toIndex) {
-            // Корректируем pendingIndex при перемещении
+            // Корректируем pendingIndex: картинки меняются местами (swap), выделение следует за своей картинкой
             let newPendingIndex = pendingIndex;
             if (pendingIndex === draggedIndex) {
                 newPendingIndex = toIndex;
-            } else if (draggedIndex < pendingIndex && toIndex >= pendingIndex) {
-                newPendingIndex--;
-            } else if (draggedIndex > pendingIndex && toIndex <= pendingIndex) {
-                newPendingIndex++;
+            } else if (pendingIndex === toIndex) {
+                newPendingIndex = draggedIndex;
             }
 
             await moveImage(draggedIndex, toIndex);
             setPendingIndex(newPendingIndex);
             await loadImages();
-            showToast(`Moved: #${draggedIndex + 1} → #${toIndex + 1}`, Toasts.Type.SUCCESS);
+            showToast(`Swapped: #${draggedIndex + 1} ⇄ #${toIndex + 1}`, Toasts.Type.SUCCESS);
         }
 
         setDraggedIndex(null);
@@ -886,7 +1042,28 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
     const nextIndex = getNextIndex();
 
     return (
-        <ModalRoot {...rootProps} size={ModalSize.LARGE}>
+        <Modal
+            {...rootProps}
+            size="xl"
+            title="Stream Preview"
+            actionBarInput={
+                <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>
+                    📁 {profiles.get(currentProfileId)?.name || "Default"}: {images.length} / {MAX_IMAGES_PER_PROFILE} images
+                </Text>
+            }
+            actions={[
+                {
+                    text: "Cancel",
+                    variant: "secondary",
+                    onClick: handleCancel
+                },
+                {
+                    text: "✓ Save",
+                    variant: "primary",
+                    onClick: handleSave
+                }
+            ]}
+        >
             {/* Полноэкранный просмотр изображения */}
             {previewImage && (
                 <div
@@ -938,19 +1115,12 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                         padding: "8px 16px",
                         borderRadius: "8px"
                     }}>
-                        📐 1280×720 (16:9) — Stream preview size
+                        📐 1280×720 (16:9) - Stream preview size
                     </div>
                 </div>
             )}
 
-            <ModalHeader>
-                <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>
-                    Stream Preview
-                </Text>
-                <ModalCloseButton onClick={handleCancel} />
-            </ModalHeader>
-            <ModalContent>
-                <div
+            <div
                     style={{ padding: "20px", position: "relative" }}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -1545,6 +1715,15 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                         >
                             🗑️ Delete All
                         </Button>
+                        {selectedIndices.size > 0 && (
+                            <Button
+                                color={Button.Colors.RED}
+                                onClick={handleDeleteSelected}
+                                style={{ padding: "10px 16px" }}
+                            >
+                                ☑ Delete Selected ({selectedIndices.size})
+                            </Button>
+                        )}
                     </div>
 
                     {error && (
@@ -1562,8 +1741,8 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                     {images.length > 0 ? (
                         <div style={{
                             display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                            gap: "16px",
+                            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
+                            gap: "12px",
                             maxHeight: "400px",
                             overflowY: "auto",
                             padding: "8px",
@@ -1575,12 +1754,13 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                 const isNext = index === nextIndex;
                                 const isBeingDragged = index === draggedIndex;
                                 const isDragTarget = index === dragOverIndex;
+                                const isSelected = selectedIndices.has(index);
 
                                 return (
                                     <div
                                         key={index}
                                         draggable
-                                        onClick={() => handleSelectCurrent(index)}
+                                        onClick={e => handleImageClick(e, index)}
                                         onDragStart={(e) => handleImageDragStart(e, index)}
                                         onDragOver={(e) => handleImageDragOver(e, index)}
                                         onDragLeave={handleImageDragLeave}
@@ -1592,19 +1772,23 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                             overflow: "hidden",
                                             border: isDragTarget
                                                 ? "3px solid #faa61a"
-                                                : isCurrent
-                                                    ? "3px solid #3ba55c"
-                                                    : isNext
-                                                        ? "3px solid #5865F2"
-                                                        : "3px solid transparent",
+                                                : isSelected
+                                                    ? "3px solid #ed4245"
+                                                    : isCurrent
+                                                        ? "3px solid #3ba55c"
+                                                        : isNext
+                                                            ? "3px solid #5865F2"
+                                                            : "3px solid transparent",
                                             backgroundColor: "var(--background-secondary)",
                                             boxShadow: isDragTarget
                                                 ? "0 4px 20px rgba(250, 166, 26, 0.4)"
-                                                : isCurrent
-                                                    ? "0 4px 20px rgba(59, 165, 92, 0.4)"
-                                                    : isNext
-                                                        ? "0 4px 16px rgba(88, 101, 242, 0.3)"
-                                                        : "0 2px 8px rgba(0,0,0,0.2)",
+                                                : isSelected
+                                                    ? "0 4px 20px rgba(237, 66, 69, 0.4)"
+                                                    : isCurrent
+                                                        ? "0 4px 20px rgba(59, 165, 92, 0.4)"
+                                                        : isNext
+                                                            ? "0 4px 16px rgba(88, 101, 242, 0.3)"
+                                                            : "0 2px 8px rgba(0,0,0,0.2)",
                                             cursor: "grab",
                                             opacity: isBeingDragged ? 0.5 : 1,
                                             transition: "all 0.15s ease"
@@ -1617,7 +1801,7 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                         }}
                                         onMouseLeave={e => {
                                             (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-                                            if (!isCurrent && !isNext && !isDragTarget) {
+                                            if (!isCurrent && !isNext && !isDragTarget && !isSelected) {
                                                 (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 8px rgba(0,0,0,0.2)";
                                             }
                                         }}
@@ -1649,11 +1833,13 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                             position: "absolute",
                                             top: "8px",
                                             left: "8px",
-                                            backgroundColor: isCurrent
-                                                ? "#3ba55c"
-                                                : isNext
-                                                    ? "#5865F2"
-                                                    : "rgba(0,0,0,0.75)",
+                                            backgroundColor: isSelected
+                                                ? "#ed4245"
+                                                : isCurrent
+                                                    ? "#3ba55c"
+                                                    : isNext
+                                                        ? "#5865F2"
+                                                        : "rgba(0,0,0,0.75)",
                                             color: "white",
                                             padding: "4px 8px",
                                             borderRadius: "6px",
@@ -1664,8 +1850,9 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                             alignItems: "center",
                                             gap: "4px"
                                         }}>
-                                            {isCurrent && "▶"}
-                                            {isNext && "→"}
+                                            {isSelected && "☑"}
+                                            {!isSelected && isCurrent && "▶"}
+                                            {!isSelected && isNext && "→"}
                                             #{index + 1}
                                         </div>
 
@@ -1811,7 +1998,7 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                                 No images
                             </Text>
                             <Text variant="text-sm/normal" style={{ color: "var(--text-muted)" }}>
-                                Drag images here or click "Add Image"
+                                Drag images here, paste with Ctrl+V or click "Add Image"
                             </Text>
                         </div>
                     )}
@@ -1828,38 +2015,11 @@ function ImagePickerModal({ rootProps }: { rootProps: any; }) {
                     }}>
                         <span style={{ fontSize: "16px" }}>💾</span>
                         <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>
-                            Images stored locally • Limit: {MAX_IMAGES_PER_PROFILE} images per profile
+                            Images stored locally • Limit: {MAX_IMAGES_PER_PROFILE} images per profile • Ctrl+Click / Shift+Click - multi-select
                         </Text>
                     </div>
-                </div>
-            </ModalContent>
-            <ModalFooter>
-                <div style={{ display: "flex", gap: "12px", width: "100%", justifyContent: "space-between", alignItems: "center" }}>
-                    <Text variant="text-xs/normal" style={{ color: "var(--text-muted)" }}>
-                        📁 {profiles.get(currentProfileId)?.name || "Default"}: {images.length} / {MAX_IMAGES_PER_PROFILE} images
-                    </Text>
-                    <div style={{ display: "flex", gap: "10px" }}>
-                        <Button
-                            onClick={handleCancel}
-                            style={{
-                                padding: "10px 20px"
-                            }}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            color={Button.Colors.GREEN}
-                            onClick={handleSave}
-                            style={{
-                                padding: "10px 24px"
-                            }}
-                        >
-                            ✓ Save
-                        </Button>
-                    </div>
-                </div>
-            </ModalFooter>
-        </ModalRoot>
+            </div>
+        </Modal>
     );
 }
 
@@ -1949,8 +2109,9 @@ function formatFileSize(bytes: number): string {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Кнопка в панели аккаунта 
+// Кнопка в панели аккаунта
 function StreamPreviewPanelButton(props: { nameplate?: any; }) {
+    const { showPanelButton } = settings.use(["showPanelButton"]);
     const [imageCount, setImageCount] = useState(0);
     const [isEnabled, setIsEnabled] = useState(settings.store.replaceEnabled);
     const [isSlideshowEnabled, setIsSlideshowEnabled] = useState(settings.store.slideshowEnabled);
@@ -2001,9 +2162,14 @@ function StreamPreviewPanelButton(props: { nameplate?: any; }) {
         const intervalSeconds = 5 * 60;
 
         // Таймер для любого количества фото (включая 1)
-        const timeInfo = lastSlideChangeTime > 0 && streamActive
+        let timeInfo = lastSlideChangeTime > 0 && streamActive
             ? `\n⏱️ ${formatTime(secondsAgo)} ago (~${formatTime(Math.max(0, intervalSeconds - secondsAgo))} until update)`
             : streamActive ? "" : "\n⚫ Stream not active";
+
+        // Первая минута после отправки: у зрителей превью обновляется с задержкой (кэш на стороне Discord)
+        if (streamActive && lastSlideChangeTime > 0 && secondsAgo < 60) {
+            timeInfo += "\n🕓 Viewers' preview updates with a delay";
+        }
 
         if (imageCount === 1) return `Stream preview (1 image)${timeInfo}`;
 
@@ -2058,6 +2224,9 @@ function StreamPreviewPanelButton(props: { nameplate?: any; }) {
 
         return tooltipText;
     };
+
+    // Кнопку можно скрыть в настройках плагина (все хуки выше уже вызваны порядок не ломается)
+    if (!showPanelButton) return null;
 
     return (
         <PanelButton
@@ -2129,7 +2298,7 @@ function getCustomThumbnail(originalThumbnail: string): string {
         return originalThumbnail;
     }
 
-    // Если одна картинка или слайд-шоу выключено — показываем выбранную
+    // Если одна картинка или слайд-шоу выключено показываем выбранную
     if (cachedDataUris.length === 1 || !settings.store.slideshowEnabled) {
         // Проверяем что индекс валиден
         const idx = currentSlideIndex < cachedDataUris.length ? currentSlideIndex : 0;
@@ -2139,7 +2308,7 @@ function getCustomThumbnail(originalThumbnail: string): string {
         return cachedDataUris[idx];
     }
 
-    // Если была ручная смена — показываем выбранную картинку один раз
+    // Если была ручная смена - показываем выбранную картинку один раз
     if (manualSlideChange) {
         manualSlideChange = false; // Сбрасываем флаг
         lastSlideChangeTime = Date.now(); // Обновляем время для таймера
@@ -2152,10 +2321,21 @@ function getCustomThumbnail(originalThumbnail: string): string {
     let nextIndex: number;
 
     if (settings.store.slideshowRandom) {
-        // Случайный выбор (но не та же самая)
-        do {
-            nextIndex = Math.floor(Math.random() * cachedDataUris.length);
-        } while (nextIndex === currentSlideIndex && cachedDataUris.length > 1);
+        // Shuffle-bag: перетасованная очередь всех индексов, повторы возможны только между циклами
+        shuffleBag = shuffleBag.filter(i => i < cachedDataUris.length); // Выбрасываем индексы удалённых картинок
+        if (shuffleBag.length === 0) {
+            shuffleBag = Array.from({ length: cachedDataUris.length }, (_, i) => i);
+            // Тасовка Фишера-Йетса
+            for (let i = shuffleBag.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffleBag[i], shuffleBag[j]] = [shuffleBag[j], shuffleBag[i]];
+            }
+            // Чтобы на стыке циклов не показать ту же картинку два раза подряд
+            if (shuffleBag[0] === currentSlideIndex && shuffleBag.length > 1) {
+                [shuffleBag[0], shuffleBag[shuffleBag.length - 1]] = [shuffleBag[shuffleBag.length - 1], shuffleBag[0]];
+            }
+        }
+        nextIndex = shuffleBag.shift()!;
     } else {
         // Последовательный выбор
         nextIndex = (currentSlideIndex + 1) % cachedDataUris.length;
@@ -2247,6 +2427,7 @@ export default definePlugin({
         isStreamActive = false;
         lastSlideChangeTime = 0;
         manualSlideChange = false;
+        shuffleBag = [];
         profiles.clear();
         activeProfileId = DEFAULT_PROFILE_ID;
     }
