@@ -24,7 +24,7 @@ import { ImageIcon } from "@components/Icons";
 import definePlugin, { OptionType } from "@utils/types";
 import { RenderModalProps } from "@vencord/discord-types";
 import { findComponentByCodeLazy } from "@webpack";
-import { Alerts, Button, closeModal, Menu, Modal, openModal, React, showToast, Text, Toasts, UserStore, useEffect, useRef, useState } from "@webpack/common";
+import { Alerts, Button, closeModal, Menu, Modal, openModal, React, showToast, Text, UserStore, useEffect, useRef, useState } from "@webpack/common";
 
 // Компонент кнопки в панели
 const PanelButton = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
@@ -723,7 +723,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
         setNewProfileName("");
         setIsCreatingProfile(false);
         handleProfileSwitch(profile.id);
-        showToast(`Profile "${profile.name}" created`, Toasts.Type.SUCCESS);
+        showToast(`Profile "${profile.name}" created`, "success");
     };
 
     // Удаление профиля
@@ -754,7 +754,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 if (currentProfileId === profileId) {
                     handleProfileSwitch(DEFAULT_PROFILE_ID);
                 }
-                showToast("Profile deleted", Toasts.Type.SUCCESS);
+                showToast("Profile deleted", "success");
             }
         });
     };
@@ -773,7 +773,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
         await saveProfilesToDataStore();
         setProfileList(getProfileList());
         setEditingProfileId(null);
-        showToast("Profile renamed", Toasts.Type.SUCCESS);
+        showToast("Profile renamed", "success");
     };
 
     // Один путь импорта для перетаскивания, Ctrl+V и диалога выбора файлов
@@ -806,7 +806,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
             loadImages();
 
             if (processed.length > 0) {
-                showToast(`Added: ${processed.length}`, Toasts.Type.SUCCESS);
+                showToast(`Added: ${processed.length}`, "success");
             }
         } catch {
             setError("File processing error");
@@ -897,7 +897,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
         }
         dropFromGrid(i => i !== index);
         setProfileList(getProfileList()); // Обновляем список профилей для отображения количества
-        showToast("Deleted", Toasts.Type.MESSAGE);
+        showToast("Deleted", "message");
     };
 
     const handleClearAll = async () => {
@@ -915,7 +915,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 setImages([]);
                 setPendingIndex(0);
                 setProfileList(getProfileList()); // Обновляем список профилей
-                showToast("All deleted", Toasts.Type.MESSAGE);
+                showToast("All deleted", "message");
             }
         });
     };
@@ -970,7 +970,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 const removed = new Set(selectedIndices);
                 dropFromGrid(i => !removed.has(i));
                 setProfileList(getProfileList());
-                showToast(`Deleted: ${count}`, Toasts.Type.MESSAGE);
+                showToast(`Deleted: ${count}`, "message");
             }
         });
     };
@@ -1003,7 +1003,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
         await saveSlideIndex(pendingIndex); // Сохраняем индекс в DataStore
         savedRef.current = true; // Помечаем что сохранили
         notifyImageChange(); // Обновляем иконку в панели
-        showToast("Settings saved!", Toasts.Type.SUCCESS);
+        showToast("Settings saved!", "success");
         rootProps.onClose();
     };
 
@@ -1057,7 +1057,7 @@ function ImagePickerModal({ rootProps }: { rootProps: RenderModalProps; }) {
             setImageSizes(swap);
             setPendingIndex(newPendingIndex);
             setSelectedIndices(new Set());
-            showToast(`Swapped: #${from + 1} ⇄ #${toIndex + 1}`, Toasts.Type.SUCCESS);
+            showToast(`Swapped: #${from + 1} ⇄ #${toIndex + 1}`, "success");
         }
 
         setDraggedIndex(null);
