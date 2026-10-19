@@ -1,53 +1,47 @@
-# СustomStream-Vencord
+# CustomStream-Vencord
 
-Discord plugin that replaces default stream preview with custom images. Features profiles system and automatic slideshow rotation.
+Vencord plugin that sends your own image as the stream preview instead of a frame of your screen. Profiles, slideshow, and a live view of what viewers see right now.
+
+## How the preview works
+
+Discord uploads a preview when you go live and then every 5 minutes. Anyone who hovers over your stream or opens your voice channel gets the latest upload, though their copy can be up to 2 minutes old. The plugin swaps the image in that upload, so your screen never leaves your PC.
+
+The gallery shows which image viewers see, when it was sent and when the next one goes out.
+
+![Gallery](screenshots/gallery-modal.png)
+
+The button next to your avatar shows the same status on hover and opens the gallery on click.
+
+![Panel button](screenshots/panel-button.png)
 
 ## Features
-- **Profiles System**: Create up to 5 profiles with 50 images each
-- **Automatic Slideshow**: Images rotate every ~5 minutes (Discord controlled)  
-- **Sequential/Random**: Random uses a shuffle — no repeats until all images are shown
-- **Ctrl+V**: Paste images from clipboard
-- **Multi-select**: Ctrl/Shift+Click images to delete several at once
-- **Fullscreen preview**: Esc or click closes it, arrow keys browse the profile
-- **Local Storage**: Images stored in IndexedDB, no external servers
-- **Panel Button**: Quick access button next to microphone controls (can be hidden in plugin settings)
-- **Hotkey**: `Alt+1` opens and closes the gallery — rebindable in the plugin settings
+
+- Up to 5 profiles with 50 images each
+- Slideshow in order or random, random never repeats an image until all were shown
+- Click an image to send it next
+- Drag images to reorder, drop files or paste with Ctrl+V to add them
+- Ctrl or Shift click to select several images
+- `Alt+1` opens the gallery, the hotkey can be changed in the plugin settings
+- Previews keep updating while the streamed window is minimized
+- Images are stored locally in IndexedDB
+- English and Russian, follows the Discord language or the one picked in the plugin settings
 
 ## Installation
 
-Requires a [Vencord dev install](https://docs.vencord.dev/installing/)
+Requires a [Vencord dev install](https://docs.vencord.dev/installing/).
 
-The plugin lives in `src/userplugins/` inside that checkout, e.g.
-`C:\Vencord\src\userplugins\customStream`. Create the `userplugins` folder if it is not there yet;
-its subfolder can be named anything.
+The plugin lives in `src/userplugins/` inside that checkout, for example `C:\Vencord\src\userplugins\customStream`. Create the `userplugins` folder if it does not exist yet.
 
 From the root of the checkout:
 
 ```bash
 git clone https://github.com/MrTopQ/customStream-Vencord src/userplugins/customStream
-```
-
-No git? Download the repository as a ZIP and put this folder in `src/userplugins/` by hand — the
-result is the same. Then, from the root of the checkout:
-
-```bash
 pnpm build && pnpm inject
 ```
 
-`pnpm inject` is only needed the first time, when this Vencord is not patched into Discord yet.
-Restart Discord afterwards, then enable **CustomStreamTopQ** in Vencord settings → Plugins.
+`pnpm inject` is only needed once, when this Vencord is not patched into Discord yet. Restart Discord, then enable **CustomStreamTopQ** in Vencord settings, Plugins.
 
 ## Notes
-- **Your own preview may show your real screen for the first minutes** — that's a local snapshot, it never leaves your PC and disappears after a while. Discord has already accepted your custom image: the plugin replaces the thumbnail uploaded to Discord's servers, so viewers only ever see it.
-- **Panel button disappeared after a Discord update?** The patch broke — a fix will be released here, update the plugin.
 
-### Panel Button
-Quick access button in the account panel showing current status:
-
-![Panel Button](screenshots/panel-button.png)
-![Panel Button1](screenshots/panel-button1.png)
-
-### Gallery Modal
-Manage your stream preview images with an intuitive interface:
-
-![Gallery Modal](screenshots/gallery-modal.png)
+- If the panel button disappeared after a Discord update, the patch broke. Update the plugin from this repository.
+- Without your own images, Discord needs a frame of the window. A minimized window gives no frames, so the preview stops updating until you restore it.

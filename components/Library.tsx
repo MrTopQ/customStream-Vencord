@@ -1,0 +1,295 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import { Button, TextButton } from "@components/Button";
+import { LazyComponent } from "@utils/lazyReact";
+import { Alerts, React, useCallback, useRef, useState } from "@webpack/common";
+import type { DragEvent } from "react";
+
+import { formatSize } from "../format";
+import { T } from "../i18n";
+import { MAX_IMAGES_PER_PROFILE, moveImage, Profile, removeImages, StoredImage } from "../library";
+import { downloadBlob } from "../media";
+import { airChanged, chooseImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
+import { settings } from "../settings";
+import { cl, useEmitter } from "../utils";
+import { CheckIcon, DownloadIcon, ExpandIcon, PlusIcon, TrashIcon } from "./icons";
+import { Thumb } from "./shared";
+
+const DRAG_TYPE = "application/x-vc-cs-image";
+
+interface Modifiers {
+    shiftKey: boolean;
+    ctrlKey: boolean;
+    metaKey: boolean;
+}
+
+interface TileHandlers {
+    click(modifiers: Modifiers, index: number): void;
+    toggle(index: number): void;
+    view(index: number): void;
+    download(index: number): void;
+    remove(index: number): void;
+    dragStart(event: DragEvent, index: number): void;
+    dragOver(event: DragEvent, index: number): void;
+    drop(event: DragEvent, index: number): void;
+    dragEnd(): void;
+}
+
+interface TileProps {
+    image: StoredImage;
+    index: number;
+    isNext: boolean;
+    nextTag: string;
+    isLive: boolean;
+    isSelected: boolean;
+    isDropTarget: boolean;
+    isDragged: boolean;
+    handlers: TileHandlers;
+}
+
+function TileView({ image, index, isNext, nextTag, isLive, isSelected, isDropTarget, isDragged, handlers }: TileProps) {
+    const tag = isLive ? T.tagLive : isNext ? nextTag : null;
+
+    return (
+        <div
+            className={cl("tile", {
+                "tile-next": isNext,
+                "tile-live": isLive,
+                "tile-selected": isSelected,
+                "tile-drop": isDropTarget,
+                "tile-dragged": isDragged
+            })}
+            draggable
+            role="button"
+            tabIndex={0}
+            aria-pressed={isNext}
+            aria-label={T.imageAria(index + 1)}
+            onClick={e => handlers.click(e, index)}
+            onKeyDown={e => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handlers.click(e, index);
+                }
+            }}
+            onDragStart={e => handlers.dragStart(e, index)}
+            onDragOver={e => handlers.dragOver(e, index)}
+            onDrop={e => handlers.drop(e, index)}
+            onDragEnd={handlers.dragEnd}
+        >
+            <Thumb image={image} />
+
+            <span className={cl("tile-number")}>{index + 1}</span>
+            {tag && <span className={cl("tile-tag", isLive ? "tile-tag-live" : "tile-tag-next")}>{tag}</span>}
+
+            <button
+                type="button"
+                className={cl("tile-check")}
+                aria-label={isSelected ? T.deselect : T.select}
+                aria-pressed={isSelected}
+                onClick={e => {
+                    e.stopPropagation();
+                    handlers.toggle(index);
+                }}
+            >
+                <CheckIcon size={14} />
+            </button>
+
+            <div className={cl("tile-actions")}>
+                <button type="button" title={T.view} onClick={e => { e.stopPropagation(); handlers.view(index); }}>
+                    <ExpandIcon size={16} />
+                </button>
+                <button type="button" title={T.download(formatSize(image.blob.size))} onClick={e => { e.stopPropagation(); handlers.download(index); }}>
+                    <DownloadIcon size={16} />
+                </button>
+                <button type="button" title="Delete" className={cl("tile-delete")} onClick={e => { e.stopPropagation(); handlers.remove(index); }}>
+                    <TrashIcon size={16} />
+                </button>
+            </div>
+        </div>
+    );
+}
+
+const Tile = LazyComponent(() => React.memo(TileView));
+
+export function Library({ profile, busy, onAdd, onView }: {
+    profile: Profile;
+    busy: boolean;
+    onAdd(): void;
+    onView(index: number): void;
+}) {
+    useEmitter(airChanged);
+    const { slideshowEnabled } = settings.use(["slideshowEnabled", "slideshowRandom", "replaceEnabled", "language"]);
+
+    const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
+    const [drag, setDrag] = useState<{ from: number; over: number | null; } | null>(null);
+    const anchorRef = useRef(0);
+
+    const live = getUploader().sentAt > 0 ? getSentImage()?.id ?? null : null;
+    const upcoming = getUpcomingIndex(profile);
+    const { images } = profile;
+
+    const latest = useRef({ images, selected, drag, onView });
+    latest.current = { images, selected, drag, onView };
+
+    const [handlers] = useState<TileHandlers>(() => {
+        const toggle = (index: number) => {
+            const id = latest.current.images[index]?.id;
+            if (!id) return;
+            anchorRef.current = index;
+            setSelected(prev => {
+                const next = new Set(prev);
+                if (!next.delete(id)) next.add(id);
+                return next;
+            });
+        };
+
+        return {
+            toggle,
+            click(modifiers, index) {
+                const { images, selected } = latest.current;
+                if (!images[index]) return;
+
+                if (modifiers.shiftKey) {
+                    const start = Math.min(anchorRef.current, index);
+                    const end = Math.max(anchorRef.current, index);
+                    setSelected(prev => new Set([...prev, ...images.slice(start, end + 1).map(image => image.id)]));
+                    return;
+                }
+
+                if (modifiers.ctrlKey || modifiers.metaKey || selected.size > 0) {
+                    toggle(index);
+                    return;
+                }
+
+                anchorRef.current = index;
+                chooseImage(index);
+            },
+            view(index) {
+                latest.current.onView(index);
+            },
+            download(index) {
+                const image = latest.current.images[index];
+                if (image) downloadBlob(image.blob, `stream-preview-${index + 1}.jpg`);
+            },
+            remove(index) {
+                const image = latest.current.images[index];
+                if (image) void removeImages(profile.id, new Set([image.id]));
+            },
+            dragStart(event, index) {
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData(DRAG_TYPE, String(index));
+                setDrag({ from: index, over: null });
+            },
+            dragOver(event, index) {
+                if (!latest.current.drag) return;
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = "move";
+                setDrag(prev => (prev && prev.over !== index ? { ...prev, over: index } : prev));
+            },
+            drop(event, index) {
+                const current = latest.current.drag;
+                if (!current) return;
+                event.preventDefault();
+                event.stopPropagation();
+                setDrag(null);
+                void moveImage(profile.id, current.from, index);
+            },
+            dragEnd() {
+                setDrag(null);
+            }
+        };
+    });
+
+    const clearSelection = useCallback(() => setSelected(new Set()), []);
+    const selectedCount = images.filter(image => selected.has(image.id)).length;
+
+    const deleteSelected = () => {
+        const ids = new Set(images.filter(image => selected.has(image.id)).map(image => image.id));
+        Alerts.show({
+            title: T.deleteImagesTitle(ids.size),
+            body: T.deleteImagesBody,
+            confirmText: T.delete,
+            cancelText: T.cancel,
+            confirmColor: "red",
+            onConfirm: async () => {
+                await removeImages(profile.id, ids);
+                clearSelection();
+            }
+        });
+    };
+
+    const deleteAll = () => Alerts.show({
+        title: T.deleteAllTitle(profile.name),
+        body: T.deleteAllBody(images.length),
+        confirmText: T.deleteAll,
+        cancelText: T.cancel,
+        confirmColor: "red",
+        onConfirm: async () => {
+            await removeImages(profile.id, new Set(images.map(image => image.id)));
+            clearSelection();
+        }
+    });
+
+    const full = images.length >= MAX_IMAGES_PER_PROFILE;
+
+    return (
+        <section className={cl("library")}>
+            <div className={cl("toolbar")}>
+                {selectedCount > 0 ? (
+                    <>
+                        <span className={cl("toolbar-label")}>{T.selectedCount(selectedCount)}</span>
+                        <div className={cl("toolbar-actions")}>
+                            <TextButton variant="secondary" onClick={clearSelection}>{T.cancel}</TextButton>
+                            <Button variant="dangerPrimary" size="small" onClick={deleteSelected}>{T.delete}</Button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        <span className={cl("toolbar-label")}>
+                            <strong>{images.length}</strong> {T.countOf} {MAX_IMAGES_PER_PROFILE}
+                            {images.length > 1 && <span className={cl("toolbar-hint")}>{slideshowEnabled ? T.hintSendNext : T.hintUse}</span>}
+                        </span>
+                        <div className={cl("toolbar-actions")}>
+                            {images.length > 0 && <TextButton variant="secondary" className={cl("delete-all")} onClick={deleteAll}>Delete all</TextButton>}
+                            <Button size="small" disabled={busy || full} onClick={onAdd}>
+                                <PlusIcon size={16} />
+                                {busy ? T.adding : T.addImages}
+                            </Button>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {images.length > 0 ? (
+                <div className={cl("grid", { "grid-selecting": selectedCount > 0 })}>
+                    {images.map((image, index) => (
+                        <Tile
+                            key={image.id}
+                            image={image}
+                            index={index}
+                            isNext={index === upcoming && image.id !== live}
+                            nextTag={slideshowEnabled && images.length > 1 ? T.tagNext : T.tagSelected}
+                            isLive={image.id === live}
+                            isSelected={selected.has(image.id)}
+                            isDropTarget={drag?.over === index && drag.from !== index}
+                            isDragged={drag?.from === index}
+                            handlers={handlers}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <button type="button" className={cl("empty")} onClick={onAdd} disabled={busy}>
+                    <PlusIcon size={24} />
+                    <span className={cl("empty-title")}>{T.emptyTitle}</span>
+                    <span className={cl("empty-note")}>{T.emptyNote}</span>
+                </button>
+            )}
+        </section>
+    );
+}

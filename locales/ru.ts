@@ -1,0 +1,121 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import type { Messages } from "./en";
+import { pluralRu } from "./plural";
+
+const images = (count: number) => `${count} ${pluralRu(count, "картинку", "картинки", "картинок")}`;
+
+export const ru: Messages = {
+    pluginDescription: "Своя картинка вместо превью стрима: профили и слайдшоу. GitHub: https://github.com/MrTopQ/customStream-Vencord",
+
+    settingLanguage: "Язык плагина. «Авто» берёт язык Discord",
+    settingLanguageAuto: "Авто (как в Discord)",
+    settingReplace: "Отправлять свою картинку как превью стрима вместо кадра с экрана",
+    settingSlideshow: "Менять картинку при каждом обновлении превью (раз в 5 минут)",
+    settingRandom: "Случайный порядок без повторов: картинка не вернётся, пока не покажутся все остальные",
+    settingPanelButton: "Кнопка рядом с аватаркой в панели аккаунта. Если она пропала после обновления Discord, сломался патч: обновите плагин с https://github.com/MrTopQ/customStream-Vencord",
+    settingHotkey: "Горячая клавиша, которая открывает и закрывает галерею, например Alt+1 или Ctrl+Shift+S",
+
+    contextMenuItem: "Сменить превью стрима",
+    toolboxOpen: "Галерея превью стрима",
+    panelAria: "Превью стрима",
+
+    modalTitle: "Превью стрима",
+    modalSubtitle: "Что видят люди, пока не зашли на ваш стрим",
+    done: "Готово",
+    storedLocally: "Картинки хранятся только на этом компьютере.",
+    storageFailed: "Хранилище не загрузилось, изменения не сохраняются.",
+    hotkeyOpens: (key: string) => `${key} открывает это окно.`,
+    dropToAdd: (profile: string) => `Отпустите, чтобы добавить в «${profile}»`,
+    profileFull: (profile: string, max: number) => `В «${profile}» уже ${max} картинок`,
+    onlyImages: "Подходят только PNG, JPEG и WebP до 8 МБ",
+    added: (count: number, skipped: number, over: number) => {
+        const notes = [skipped && `пропущено ${skipped}`, over && `сверх лимита ${over}`].filter(Boolean).join(", ");
+        return `Добавлено: ${count}${notes ? ` (${notes})` : ""}`;
+    },
+    readFailed: "Не удалось прочитать один из файлов",
+
+    howItWorks: "Discord загружает превью, когда вы начинаете стрим, и потом раз в 5 минут. Кто наводит на ваш стрим или открывает голосовой канал, получает последнюю загрузку, но у него она может отставать до 2 минут.",
+    notLive: "Не в эфире",
+    live: "В эфире",
+    livePreviewOff: "В эфире, превью выключено",
+    streamPaused: "Стрим на паузе",
+    uploadFailed: "Не удалось загрузить",
+    offlineReplaceOff: "Замена выключена, зрители увидят кадр с вашего экрана.",
+    offlineNoImages: "Добавьте картинку, и она станет превью стрима.",
+    offlineFirst: (label: string) => `Как только начнёте стрим, Discord отправит ${label} в первые несколько секунд.`,
+    previewOffDetail: "Для этого стрима превью выключено, Discord ничего не отправляет.",
+    viewersSee: (label: string) => `Зрители видят ${label}`,
+    viewersSeeScreen: "Зрители видят ваш экран",
+    pausedDetail: (seen: string | null) => `Окно стрима свёрнуто или скрыто, Discord нечего отправить.${seen ? ` ${seen}.` : ""}`,
+    failedDetail: (retryIn: string | null, seen: string | null) =>
+        `Discord повторит ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.${seen ? ` Пока ${seen.charAt(0).toLowerCase()}${seen.slice(1)}.` : ""}`,
+    sendingFirst: "Отправка первого превью…",
+    nextUpdate: (inTime: string | null, upcoming: string | null) =>
+        `Следующее обновление ${inTime ? `через ${inTime}` : "с минуты на минуту"}${upcoming ? `, дальше ${upcoming}` : ""}.`,
+    nextUpdateUnknown: (upcoming: string | null) => `Следующее обновление в течение 5 минут${upcoming ? `, дальше ${upcoming}` : ""}.`,
+    sentDetail: (ago: string, next: string) => `Отправлено ${ago} назад. ${next}`,
+    deletedImage: "удалённую картинку",
+    imageFromProfile: (label: string, profile: string) => `${label} из профиля ${profile}`,
+
+    captionViewersSee: "Зрители видят",
+    captionGoesFirst: "Уйдёт первой",
+    yourScreen: "Ваш экран",
+    liveBadge: "В эфире",
+
+    useMyImages: "Свои картинки",
+    noteReplaceOn: "Зрители не видят ваш экран",
+    noteReplaceOff: "Зрители видят кадр с экрана",
+    slideshow: "Слайдшоу",
+    noteSlideshowOn: "Новая картинка каждые 5 минут",
+    noteSlideshowOff: "Всегда одна и та же картинка",
+    order: "Порядок",
+    noteShuffle: "Без повторов, пока не покажет все",
+    noteInOrder: "Слева направо и снова",
+    inOrder: "По порядку",
+    shuffle: "Случайно",
+    orderAria: "Порядок слайдшоу",
+
+    profilesAria: "Профили",
+    profileNamePlaceholder: "Название профиля",
+    profileLimit: (max: number) => `Профилей может быть не больше ${max}`,
+    newProfile: "Новый профиль",
+    doubleClickRename: "Двойной клик, чтобы переименовать",
+    renameProfile: (profile: string) => `Переименовать «${profile}»`,
+    deleteProfileButton: (profile: string) => `Удалить «${profile}»`,
+    deleteProfileTitle: (profile: string) => `Удалить «${profile}»?`,
+    deleteProfileBody: "Профиль пустой, больше ничего не удалится.",
+    delete: "Удалить",
+    cancel: "Отмена",
+
+    imageAria: (n: number) => `Картинка ${n}`,
+    tagLive: "Эфир",
+    tagNext: "Далее",
+    tagSelected: "Выбрана",
+    select: "Выбрать",
+    deselect: "Снять выбор",
+    view: "Открыть",
+    download: (size: string) => `Скачать (${size})`,
+    selectedCount: (count: number) => `Выбрано: ${count}`,
+    deleteImagesTitle: (count: number) => `Удалить ${images(count)}?`,
+    deleteImagesBody: "Они удалятся с этого компьютера, вернуть их не получится.",
+    deleteAll: "Удалить все",
+    deleteAllTitle: (profile: string) => `Удалить все картинки в «${profile}»?`,
+    deleteAllBody: (count: number) => `Будет удалено картинок: ${count}. Вернуть их не получится.`,
+    countOf: "из",
+    hintSendNext: "Нажмите на картинку, чтобы она ушла следующей",
+    hintUse: "Нажмите на картинку, чтобы выбрать её",
+    adding: "Добавление…",
+    addImages: "Добавить картинки",
+    emptyTitle: "Добавьте первую картинку",
+    emptyNote: "PNG, JPEG или WebP. Файлы можно перетащить сюда или вставить через Ctrl+V.",
+
+    lightboxAria: (n: number, total: number) => `Картинка ${n} из ${total}`,
+    close: "Закрыть",
+    previous: "Назад",
+    next: "Вперёд"
+};

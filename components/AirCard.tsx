@@ -1,0 +1,48 @@
+/*
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+import { T } from "../i18n";
+import { describeAir } from "../status";
+import { cl, useNow } from "../utils";
+import { ScreenIcon } from "./icons";
+import { AirView, Thumb, useAirView } from "./shared";
+
+function AirText({ view }: { view: AirView; }) {
+    const now = useNow(view.live);
+    const status = describeAir({ ...view, now }, T);
+
+    return (
+        <div className={cl("air-text")} aria-live="polite">
+            <div className={cl("air-headline", `tone-${status.tone}`)}>
+                <span className={cl("air-dot")} />
+                {status.headline}
+            </div>
+            <div className={cl("air-detail")}>{status.detail}</div>
+        </div>
+    );
+}
+
+export function AirCard() {
+    const view = useAirView();
+    const caption = view.live && view.uploader.sentAt > 0 ? T.captionViewersSee : T.captionGoesFirst;
+
+    return (
+        <section className={cl("air")}>
+            <figure className={cl("air-preview")}>
+                {view.shownImage
+                    ? <Thumb image={view.shownImage} />
+                    : <div className={cl("air-screen")}><ScreenIcon size={28} /><span>{T.yourScreen}</span></div>}
+                {view.live && <span className={cl("live-badge")}>{T.liveBadge}</span>}
+                <figcaption className={cl("air-caption")}>{caption}</figcaption>
+            </figure>
+
+            <div className={cl("air-body")}>
+                <AirText view={view} />
+                <p className={cl("air-help")}>{T.howItWorks}</p>
+            </div>
+        </section>
+    );
+}
