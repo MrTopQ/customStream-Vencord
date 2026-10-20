@@ -27,7 +27,8 @@ function AirText({ view }: { view: AirView; }) {
 
 export function AirCard() {
     const view = useAirView();
-    const caption = view.live && view.uploader.sentAt > 0 ? T.captionViewersSee : T.captionGoesFirst;
+    const sent = view.live && view.uploader.sentAt > 0;
+    const caption = sent ? T.captionViewersSee : view.live && view.pendingImage ? T.captionSending : T.captionGoesFirst;
 
     return (
         <section className={cl("air")}>

@@ -9,7 +9,7 @@ import { ApplicationStreamingStore, useEffect, useState, useStateFromStores } fr
 import { T } from "../i18n";
 import { findImage, getActiveProfile, libraryChanged, StoredImage } from "../library";
 import { loadThumb, peekThumb } from "../media";
-import { airChanged, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
+import { airChanged, getPendingImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
 import { UploaderState } from "../schedule";
 import { settings } from "../settings";
 import { cl, logger, useEmitter } from "../utils";
@@ -37,12 +37,15 @@ export function Thumb({ image, className }: { image: StoredImage; className?: st
 
 export interface AirView {
     live: boolean;
+    connecting: boolean;
     previewDisabled: boolean;
     replaceEnabled: boolean;
     imageCount: number;
     uploader: UploaderState;
     sentImage: StoredImage | null;
     sentLabel: string | null;
+    pendingImage: StoredImage | null;
+    pendingLabel: string | null;
     upcomingImage: StoredImage | null;
     upcomingIndex: number;
     upcomingLabel: string | null;
@@ -64,6 +67,7 @@ export function useAirView(): AirView {
     const { replaceEnabled } = settings.use(["replaceEnabled", "slideshowEnabled", "slideshowRandom", "language"]);
 
     const live = useStateFromStores([ApplicationStreamingStore], () => ApplicationStreamingStore.getCurrentUserActiveStream() != null);
+    const connecting = useStateFromStores([ApplicationStreamingStore], () => (ApplicationStreamingStore.getCurrentUserActiveStream() as { state?: string; } | null)?.state === "CONNECTING");
     const previewDisabled = useStateFromStores(
         [ApplicationStreamingStore],
         () => ApplicationStreamingStore.getStreamerActiveStreamMetadata()?.previewDisabled === true
@@ -74,19 +78,24 @@ export function useAirView(): AirView {
     const upcomingIndex = getUpcomingIndex(profile);
     const upcomingImage = profile.images[upcomingIndex] ?? null;
     const sentImage = getSentImage();
+    const pendingImage = getPendingImage();
     const hasSent = live && uploader.sentAt > 0;
+    const isSending = live && !hasSent && pendingImage != null;
 
     return {
         live,
+        connecting,
         previewDisabled,
         replaceEnabled,
         imageCount: profile.images.length,
         uploader,
         sentImage,
         sentLabel: labelFor(sentImage, profile.id),
+        pendingImage,
+        pendingLabel: labelFor(pendingImage, profile.id),
         upcomingImage,
         upcomingIndex,
         upcomingLabel: upcomingImage ? `#${upcomingIndex + 1}` : null,
-        shownImage: hasSent ? sentImage : replaceEnabled ? upcomingImage : null
+        shownImage: hasSent ? sentImage : isSending ? pendingImage : replaceEnabled ? upcomingImage : null
     };
 }

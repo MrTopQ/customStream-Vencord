@@ -453,6 +453,11 @@
     background: var(--vc-cs-next);
 }
 
+.vc-cs-tile-tag-sending {
+    background: var(--vc-cs-warning);
+    color: #1e1f22;
+}
+
 .vc-cs-tile-check {
     position: absolute;
     top: 6px;

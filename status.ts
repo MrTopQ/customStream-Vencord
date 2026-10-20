@@ -25,6 +25,8 @@ export interface AirInputs {
     uploader: UploaderState;
     sentLabel: string | null;
     upcomingLabel: string | null;
+    pendingLabel?: string | null;
+    connecting?: boolean;
 }
 
 function describeOffline({ replaceEnabled, imageCount, upcomingLabel }: AirInputs, text: Messages): AirStatus {
@@ -56,7 +58,7 @@ export function describeAir(inputs: AirInputs, text: Messages): AirStatus {
     }
 
     if (!uploader.running) {
-        return { tone: "live", headline: text.live, detail: describeNext(inputs, null, text) };
+        return { tone: "live", headline: text.live, detail: inputs.connecting ? text.connecting : describeNext(inputs, null, text) };
     }
 
     const due = nextUploadAt(uploader);
@@ -74,7 +76,7 @@ export function describeAir(inputs: AirInputs, text: Messages): AirStatus {
     }
 
     if (!seen) {
-        return { tone: "live", headline: text.live, detail: text.sendingFirst };
+        return { tone: "live", headline: text.live, detail: text.sending(inputs.pendingLabel ?? null) };
     }
 
     return {

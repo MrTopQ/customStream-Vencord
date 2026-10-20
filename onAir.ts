@@ -32,6 +32,10 @@ export function getSentImage(): StoredImage | null {
     return sentImage;
 }
 
+export function getPendingImage(): StoredImage | null {
+    return pending?.image ?? null;
+}
+
 function setUploader(next: UploaderState) {
     uploader = next;
     airChanged.emit();
@@ -43,9 +47,11 @@ export function streamKeyOf(guildId: string | null | undefined, channelId: strin
 
 export function onUploaderStarted(streamKey: string | null) {
     const sameStream = streamKey != null && streamKey === uploader.streamKey;
-    if (!sameStream) sentImage = null;
+    if (!sameStream) {
+        sentImage = null;
+        pending = null;
+    }
 
-    pending = null;
     hold = true;
     setUploader({
         ...(sameStream ? uploader : IDLE_UPLOADER),
@@ -171,7 +177,7 @@ function schedulePrepare() {
 
 function markPending(image: StoredImage | null) {
     pending = { image };
-    if (!uploader.running) setUploader({ ...uploader, running: true, runningSince: Date.now() });
+    setUploader(uploader.running ? { ...uploader } : { ...uploader, running: true, runningSince: Date.now() });
 }
 
 export function pickThumbnail(makeOriginal: () => string): string {

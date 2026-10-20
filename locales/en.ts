@@ -9,14 +9,14 @@ import { pluralEn } from "./plural";
 const images = (count: number) => `${count} ${pluralEn(count, "image", "images")}`;
 
 export const en = {
-    pluginDescription: "Replace your stream preview with your own images, with profiles and a slideshow. GitHub: https://github.com/MrTopQ/customStream-Vencord",
+    pluginDescription: "Replace your stream preview with your own images, with profiles and a slideshow. GitHub https://github.com/MrTopQ/customStream-Vencord",
 
     settingLanguage: "Language of the plugin. Auto follows the language of Discord",
     settingLanguageAuto: "Auto (follow Discord)",
     settingReplace: "Send your own image as the stream preview instead of a frame of your screen",
     settingSlideshow: "Switch to the next image every time Discord updates the preview (every 5 minutes)",
-    settingRandom: "Random order without repeats: no image comes back until all of them were shown",
-    settingPanelButton: "Show the button next to your avatar in the account panel. If it vanished after a Discord update, the patch broke: update the plugin from https://github.com/MrTopQ/customStream-Vencord",
+    settingRandom: "Random order without repeats. No image comes back until all of them were shown",
+    settingPanelButton: "Show the button next to your avatar in the account panel. If it vanished after a Discord update, the patch broke, update the plugin from https://github.com/MrTopQ/customStream-Vencord",
     settingHotkey: "Hotkey that opens and closes the gallery, e.g. Alt+1 or Ctrl+Shift+S",
 
     contextMenuItem: "Change Stream Preview",
@@ -55,7 +55,8 @@ export const en = {
         `Viewers see no preview yet${rateLimited ? ", Discord's rate limit kicked in" : ""}. Discord retries ${retryIn ? `in ${retryIn}` : "any moment now"}.`,
     retryNote: (retryIn: string | null, rateLimited: boolean) =>
         `${rateLimited ? "A repeat upload hit Discord's rate limit" : "The last upload failed"}, next try ${retryIn ? `in ${retryIn}` : "any moment now"}.`,
-    sendingFirst: "Sending the first preview…",
+    sending: (label: string | null) => (label ? `Sending ${label}…` : "Sending the first preview…"),
+    connecting: "The stream is connecting, the preview goes out right after.",
     nextUpdate: (inTime: string | null, upcoming: string | null) =>
         `Next update ${inTime ? `in ${inTime}` : "any moment now"}${upcoming ? `, ${upcoming} goes next` : ""}.`,
     nextUpdateUnknown: (upcoming: string | null) => `Next update within 5 minutes${upcoming ? `, ${upcoming} goes next` : ""}.`,
@@ -65,6 +66,7 @@ export const en = {
 
     captionViewersSee: "Viewers see",
     captionGoesFirst: "Goes out first",
+    captionSending: "Sending now",
     yourScreen: "Your screen",
     liveBadge: "Live",
 
@@ -96,6 +98,7 @@ export const en = {
     imageAria: (n: number) => `Image ${n}`,
     tagLive: "Live",
     tagNext: "Next",
+    tagSending: "Sending",
     tagSelected: "Selected",
     select: "Select",
     deselect: "Deselect",

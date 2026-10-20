@@ -13,7 +13,7 @@ import { formatSize } from "../format";
 import { T } from "../i18n";
 import { MAX_IMAGES_PER_PROFILE, moveImage, Profile, removeImages, StoredImage } from "../library";
 import { downloadBlob } from "../media";
-import { airChanged, chooseImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
+import { airChanged, chooseImage, getPendingImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
 import { settings } from "../settings";
 import { cl, useEmitter } from "../utils";
 import { CheckIcon, DownloadIcon, ExpandIcon, PlusIcon, TrashIcon } from "./icons";
@@ -45,14 +45,15 @@ interface TileProps {
     isNext: boolean;
     nextTag: string;
     isLive: boolean;
+    isSending: boolean;
     isSelected: boolean;
     isDropTarget: boolean;
     isDragged: boolean;
     handlers: TileHandlers;
 }
 
-function TileView({ image, index, isNext, nextTag, isLive, isSelected, isDropTarget, isDragged, handlers }: TileProps) {
-    const tag = isLive ? T.tagLive : isNext ? nextTag : null;
+function TileView({ image, index, isNext, nextTag, isLive, isSending, isSelected, isDropTarget, isDragged, handlers }: TileProps) {
+    const tag = isLive ? T.tagLive : isSending ? T.tagSending : isNext ? nextTag : null;
 
     return (
         <div
@@ -84,7 +85,7 @@ function TileView({ image, index, isNext, nextTag, isLive, isSelected, isDropTar
             <Thumb image={image} />
 
             <span className={cl("tile-number")}>{index + 1}</span>
-            {tag && <span className={cl("tile-tag", isLive ? "tile-tag-live" : "tile-tag-next")}>{tag}</span>}
+            {tag && <span className={cl("tile-tag", isLive ? "tile-tag-live" : isSending ? "tile-tag-sending" : "tile-tag-next")}>{tag}</span>}
 
             <button
                 type="button"
@@ -130,6 +131,7 @@ export function Library({ profile, busy, onAdd, onView }: {
     const anchorRef = useRef(0);
 
     const live = getUploader().sentAt > 0 ? getSentImage()?.id ?? null : null;
+    const sending = getPendingImage()?.id ?? null;
     const upcoming = getUpcomingIndex(profile);
     const { images } = profile;
 
@@ -273,9 +275,10 @@ export function Library({ profile, busy, onAdd, onView }: {
                             key={image.id}
                             image={image}
                             index={index}
-                            isNext={index === upcoming && image.id !== live}
+                            isNext={index === upcoming && image.id !== live && image.id !== sending}
                             nextTag={slideshowEnabled && images.length > 1 ? T.tagNext : T.tagSelected}
                             isLive={image.id === live}
+                            isSending={image.id === sending && image.id !== live}
                             isSelected={selected.has(image.id)}
                             isDropTarget={drag?.over === index && drag.from !== index}
                             isDragged={drag?.from === index}

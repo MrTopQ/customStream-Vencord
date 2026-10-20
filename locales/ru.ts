@@ -8,16 +8,18 @@ import type { Messages } from "./en";
 import { pluralRu } from "./plural";
 
 const images = (count: number) => `${count} ${pluralRu(count, "картинку", "картинки", "картинок")}`;
+const counted = (count: number, one: string, other: string) =>
+    `${pluralRu(count, one, other, other)} ${count} ${pluralRu(count, "картинка", "картинки", "картинок")}`;
 
 export const ru: Messages = {
-    pluginDescription: "Своя картинка вместо превью стрима: профили и слайдшоу. GitHub: https://github.com/MrTopQ/customStream-Vencord",
+    pluginDescription: "Своя картинка вместо превью стрима, с профилями и слайдшоу. GitHub https://github.com/MrTopQ/customStream-Vencord",
 
     settingLanguage: "Язык плагина. «Авто» берёт язык Discord",
     settingLanguageAuto: "Авто (как в Discord)",
     settingReplace: "Отправлять свою картинку как превью стрима вместо кадра с экрана",
     settingSlideshow: "Менять картинку при каждом обновлении превью (раз в 5 минут)",
-    settingRandom: "Случайный порядок без повторов: картинка не вернётся, пока не покажутся все остальные",
-    settingPanelButton: "Кнопка рядом с аватаркой в панели аккаунта. Если она пропала после обновления Discord, сломался патч: обновите плагин с https://github.com/MrTopQ/customStream-Vencord",
+    settingRandom: "Случайный порядок без повторов. Картинка не вернётся, пока не покажутся все остальные",
+    settingPanelButton: "Кнопка рядом с аватаркой в панели аккаунта. Если она пропала после обновления Discord, сломался патч, обновите плагин с https://github.com/MrTopQ/customStream-Vencord",
     settingHotkey: "Горячая клавиша, которая открывает и закрывает галерею, например Alt+1 или Ctrl+Shift+S",
 
     contextMenuItem: "Сменить превью стрима",
@@ -35,7 +37,7 @@ export const ru: Messages = {
     onlyImages: "Подходят только PNG, JPEG и WebP до 8 МБ",
     added: (count: number, skipped: number, over: number) => {
         const notes = [skipped && `пропущено ${skipped}`, over && `сверх лимита ${over}`].filter(Boolean).join(", ");
-        return `Добавлено: ${count}${notes ? ` (${notes})` : ""}`;
+        return `${counted(count, "Добавлена", "Добавлено")}${notes ? ` (${notes})` : ""}`;
     },
     readFailed: "Не удалось прочитать один из файлов",
 
@@ -56,7 +58,8 @@ export const ru: Messages = {
         `Зрители пока не видят превью${rateLimited ? ", сработал лимит Discord" : ""}. Discord повторит ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.`,
     retryNote: (retryIn: string | null, rateLimited: boolean) =>
         `${rateLimited ? "Повторная отправка упёрлась в лимит Discord" : "Последняя отправка не прошла"}, следующая попытка ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.`,
-    sendingFirst: "Отправка первого превью…",
+    sending: (label: string | null) => (label ? `Отправка ${label}…` : "Отправка первого превью…"),
+    connecting: "Стрим подключается, превью уйдёт сразу после этого.",
     nextUpdate: (inTime: string | null, upcoming: string | null) =>
         `Следующее обновление ${inTime ? `через ${inTime}` : "с минуты на минуту"}${upcoming ? `, дальше ${upcoming}` : ""}.`,
     nextUpdateUnknown: (upcoming: string | null) => `Следующее обновление в течение 5 минут${upcoming ? `, дальше ${upcoming}` : ""}.`,
@@ -66,6 +69,7 @@ export const ru: Messages = {
 
     captionViewersSee: "Зрители видят",
     captionGoesFirst: "Уйдёт первой",
+    captionSending: "Отправляется",
     yourScreen: "Ваш экран",
     liveBadge: "В эфире",
 
@@ -97,17 +101,18 @@ export const ru: Messages = {
     imageAria: (n: number) => `Картинка ${n}`,
     tagLive: "Эфир",
     tagNext: "Далее",
+    tagSending: "Отправка",
     tagSelected: "Выбрана",
     select: "Выбрать",
     deselect: "Снять выбор",
     view: "Открыть",
     download: (size: string) => `Скачать (${size})`,
-    selectedCount: (count: number) => `Выбрано: ${count}`,
+    selectedCount: (count: number) => counted(count, "Выбрана", "Выбрано"),
     deleteImagesTitle: (count: number) => `Удалить ${images(count)}?`,
     deleteImagesBody: "Они удалятся с этого компьютера, вернуть их не получится.",
     deleteAll: "Удалить все",
     deleteAllTitle: (profile: string) => `Удалить все картинки в «${profile}»?`,
-    deleteAllBody: (count: number) => `Будет удалено картинок: ${count}. Вернуть их не получится.`,
+    deleteAllBody: (count: number) => `Картинки этого профиля (всего ${count}) удалятся с компьютера, вернуть их не получится.`,
     countOf: "из",
     hintSendNext: "Нажмите на картинку, чтобы она ушла следующей",
     hintUse: "Нажмите на картинку, чтобы выбрать её",
