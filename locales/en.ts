@@ -51,8 +51,10 @@ export const en = {
     viewersSee: (label: string) => `Viewers see ${label}`,
     viewersSeeScreen: "Viewers see your screen",
     pausedDetail: (seen: string | null) => `The streamed window is minimized or hidden, so Discord has no frame to send.${seen ? ` ${seen}.` : ""}`,
-    failedDetail: (retryIn: string | null, seen: string | null) =>
-        `Discord retries ${retryIn ? `in ${retryIn}` : "any moment now"}.${seen ? ` ${seen} until then.` : ""}`,
+    failedNoPreview: (retryIn: string | null, rateLimited: boolean) =>
+        `Viewers see no preview yet${rateLimited ? ", Discord's rate limit kicked in" : ""}. Discord retries ${retryIn ? `in ${retryIn}` : "any moment now"}.`,
+    retryNote: (retryIn: string | null, rateLimited: boolean) =>
+        `${rateLimited ? "A repeat upload hit Discord's rate limit" : "The last upload failed"}, next try ${retryIn ? `in ${retryIn}` : "any moment now"}.`,
     sendingFirst: "Sending the first preview…",
     nextUpdate: (inTime: string | null, upcoming: string | null) =>
         `Next update ${inTime ? `in ${inTime}` : "any moment now"}${upcoming ? `, ${upcoming} goes next` : ""}.`,

@@ -52,8 +52,10 @@ export const ru: Messages = {
     viewersSee: (label: string) => `Зрители видят ${label}`,
     viewersSeeScreen: "Зрители видят ваш экран",
     pausedDetail: (seen: string | null) => `Окно стрима свёрнуто или скрыто, Discord нечего отправить.${seen ? ` ${seen}.` : ""}`,
-    failedDetail: (retryIn: string | null, seen: string | null) =>
-        `Discord повторит ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.${seen ? ` Пока ${seen.charAt(0).toLowerCase()}${seen.slice(1)}.` : ""}`,
+    failedNoPreview: (retryIn: string | null, rateLimited: boolean) =>
+        `Зрители пока не видят превью${rateLimited ? ", сработал лимит Discord" : ""}. Discord повторит ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.`,
+    retryNote: (retryIn: string | null, rateLimited: boolean) =>
+        `${rateLimited ? "Повторная отправка упёрлась в лимит Discord" : "Последняя отправка не прошла"}, следующая попытка ${retryIn ? `через ${retryIn}` : "с минуты на минуту"}.`,
     sendingFirst: "Отправка первого превью…",
     nextUpdate: (inTime: string | null, upcoming: string | null) =>
         `Следующее обновление ${inTime ? `через ${inTime}` : "с минуты на минуту"}${upcoming ? `, дальше ${upcoming}` : ""}.`,

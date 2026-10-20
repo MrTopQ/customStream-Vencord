@@ -20,6 +20,8 @@ import { forgetAllThumbs } from "./media";
 import {
     ensureCustomThumbnail,
     isOwnStreamEvent,
+    onStreamEnded,
+    onUploadDone,
     onUploaderStarted,
     onUploaderStopped,
     onUploadFailed,
@@ -27,6 +29,7 @@ import {
     pickThumbnail,
     startOnAir,
     stopOnAir,
+    streamKeyOf,
     willSendCustom
 } from "./onAir";
 import { DEFAULT_HOTKEY, PLUGIN_NAME, settings, unwatchSettings, watchSettings } from "./settings";
@@ -110,7 +113,7 @@ export default definePlugin({
                 },
                 {
                     match: /(\i)\?(\i)\.start\(6e4,(\i)\):\2\.start\(3e5,\3\)/,
-                    replace: "$1&&!$self.willSendCustom()?$2.start(6e4,$3):$2.start(3e5,$3)"
+                    replace: "($self.onUploadDone(),$1&&!$self.willSendCustom())?$2.start(6e4,$3):$2.start(3e5,$3)"
                 },
                 {
                     match: /subscribe\("STREAM_DELETE",(\i)\)/,
@@ -125,22 +128,26 @@ export default definePlugin({
                     replace: "{thumbnail:$self.ensureCustomThumbnail($1)}"
                 },
                 {
-                    match: /"Failed to post stream preview",\i\)/,
-                    replace: "$&,$self.onUploadFailed()"
+                    match: /"Failed to post stream preview",(\i)\)/,
+                    replace: "$&,$self.onUploadFailed($1)"
                 }
             ]
         }
     ],
 
     flux: {
-        RTC_CONNECTION_VIDEO({ userId, streamId, context }: { userId: string; streamId?: string | null; context?: string; }) {
-            if (context === "stream" && streamId != null && userId === UserStore.getCurrentUser()?.id) onUploaderStarted();
+        RTC_CONNECTION_VIDEO(event: { guildId?: string | null; channelId: string; userId: string; streamId?: string | null; context?: string; }) {
+            if (event.context !== "stream" || event.streamId == null || event.userId !== UserStore.getCurrentUser()?.id) return;
+            onUploaderStarted(streamKeyOf(event.guildId, event.channelId, event.userId));
         },
         STREAM_DELETE(event: { streamKey?: string; }) {
-            if (isOwnStreamEvent(event)) onUploaderStopped();
+            if (isOwnStreamEvent(event)) onStreamEnded();
+        },
+        STREAM_STOP(event: { streamKey?: string; }) {
+            if (isOwnStreamEvent(event)) onStreamEnded();
         },
         CONNECTION_OPEN: onUploaderStopped,
-        LOGOUT: onUploaderStopped,
+        LOGOUT: onStreamEnded,
         MEDIA_ENGINE_VIDEO_STATE_CHANGED({ videoState }: { videoState?: string; }) {
             onVideoStateChanged(videoState === "paused");
         }
@@ -158,6 +165,7 @@ export default definePlugin({
     pickThumbnail,
     ensureCustomThumbnail,
     onUploadFailed,
+    onUploadDone,
     willSendCustom,
     isOwnStreamEvent,
     nextPreviewFrame,

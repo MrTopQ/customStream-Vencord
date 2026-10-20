@@ -8,7 +8,7 @@ import { UserStore } from "@webpack/common";
 
 import { getActiveProfile, libraryChanged, Profile, setCurrentIndex, StoredImage } from "./library";
 import { blobToDataUrl } from "./media";
-import { IDLE_UPLOADER, nextIndex, shuffledIds, UploaderState } from "./schedule";
+import { IDLE_UPLOADER, isRateLimitError, nextIndex, shuffledIds, UploaderState } from "./schedule";
 import { settings, settingsChanged } from "./settings";
 import { createEmitter, logger } from "./utils";
 
@@ -18,6 +18,7 @@ export const airChanged = createEmitter();
 
 let uploader: UploaderState = IDLE_UPLOADER;
 let sentImage: StoredImage | null = null;
+let pending: { image: StoredImage | null; } | null = null;
 let hold = true;
 let bag: { profileId: string; ids: string[]; } = { profileId: "", ids: [] };
 let lastReturned: string | null = null;
@@ -36,16 +37,37 @@ function setUploader(next: UploaderState) {
     airChanged.emit();
 }
 
-export function onUploaderStarted() {
-    sentImage = null;
+export function streamKeyOf(guildId: string | null | undefined, channelId: string, ownerId: string): string {
+    return guildId ? `guild:${guildId}:${channelId}:${ownerId}` : `call:${channelId}:${ownerId}`;
+}
+
+export function onUploaderStarted(streamKey: string | null) {
+    const sameStream = streamKey != null && streamKey === uploader.streamKey;
+    if (!sameStream) sentImage = null;
+
+    pending = null;
     hold = true;
-    setUploader({ ...IDLE_UPLOADER, running: true, runningSince: Date.now(), paused: uploader.paused });
+    setUploader({
+        ...(sameStream ? uploader : IDLE_UPLOADER),
+        running: true,
+        runningSince: Date.now(),
+        streamKey,
+        failedAt: 0,
+        rateLimited: false,
+        paused: uploader.paused
+    });
     schedulePrepare();
 }
 
 export function onUploaderStopped() {
-    if (!uploader.running && uploader.sentAt === 0) return;
+    pending = null;
+    if (uploader.running) setUploader({ ...uploader, running: false });
+}
+
+export function onStreamEnded() {
+    pending = null;
     sentImage = null;
+    hold = true;
     setUploader({ ...IDLE_UPLOADER, paused: uploader.paused });
 }
 
@@ -53,8 +75,18 @@ export function onVideoStateChanged(paused: boolean) {
     if (uploader.paused !== paused) setUploader({ ...uploader, paused });
 }
 
-export function onUploadFailed() {
-    setUploader({ ...uploader, running: true, failedAt: Date.now() });
+export function onUploadDone() {
+    if (!pending) return;
+
+    sentImage = pending.image;
+    pending = null;
+    setUploader({ ...uploader, running: true, sentAt: Date.now(), sentImageId: sentImage?.id ?? null, failedAt: 0, rateLimited: false });
+}
+
+export function onUploadFailed(error?: unknown) {
+    pending = null;
+    hold = true;
+    setUploader({ ...uploader, running: true, failedAt: Date.now(), rateLimited: isRateLimitError(error) });
 }
 
 export function isOwnStreamEvent(event: { streamKey?: string; } | undefined): boolean {
@@ -80,10 +112,6 @@ function peekShuffled(profile: Profile): string | null {
     return ids[0] ?? null;
 }
 
-export function isHolding(): boolean {
-    return hold;
-}
-
 export function getUpcomingIndex(profile: Profile = getActiveProfile()): number {
     return nextIndex(
         profile.images.length,
@@ -102,13 +130,6 @@ export function chooseImage(index: number) {
 
     hold = true;
     void setCurrentIndex(profile.id, index);
-    airChanged.emit();
-    schedulePrepare();
-}
-
-export function holdCurrent() {
-    if (hold) return;
-    hold = true;
     airChanged.emit();
     schedulePrepare();
 }
@@ -148,20 +169,12 @@ function schedulePrepare() {
     });
 }
 
-function recordSent(image: StoredImage | null, at: number) {
-    sentImage = image;
-    setUploader({
-        ...uploader,
-        running: true,
-        runningSince: uploader.running ? uploader.runningSince : at,
-        sentAt: at,
-        sentImageId: image?.id ?? null,
-        failedAt: 0
-    });
+function markPending(image: StoredImage | null) {
+    pending = { image };
+    if (!uploader.running) setUploader({ ...uploader, running: true, runningSince: Date.now() });
 }
 
 export function pickThumbnail(makeOriginal: () => string): string {
-    const now = Date.now();
     const profile = getActiveProfile();
     const upcoming = settings.store.replaceEnabled ? profile.images[getUpcomingIndex(profile)] : undefined;
 
@@ -173,7 +186,7 @@ export function pickThumbnail(makeOriginal: () => string): string {
 
     if (!chosen) {
         const original = makeOriginal();
-        recordSent(null, now);
+        markPending(null);
         lastReturned = original;
         return original;
     }
@@ -183,7 +196,7 @@ export function pickThumbnail(makeOriginal: () => string): string {
     hold = false;
 
     void setCurrentIndex(profile.id, profile.images.indexOf(chosen));
-    recordSent(chosen, now);
+    markPending(chosen);
     schedulePrepare();
 
     const uri = dataUris.get(chosenId)!;
@@ -224,6 +237,7 @@ export function stopOnAir() {
     unsubscribers = [];
     uploader = IDLE_UPLOADER;
     sentImage = null;
+    pending = null;
     hold = true;
     bag = { profileId: "", ids: [] };
     lastReturned = null;

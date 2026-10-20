@@ -12,26 +12,37 @@ export const VIEWER_CACHE_TIME = 120_000;
 export interface UploaderState {
     readonly running: boolean;
     readonly runningSince: number;
+    readonly streamKey: string | null;
     readonly sentAt: number;
     readonly sentImageId: string | null;
     readonly failedAt: number;
+    readonly rateLimited: boolean;
     readonly paused: boolean;
 }
 
 export const IDLE_UPLOADER: UploaderState = {
     running: false,
     runningSince: 0,
+    streamKey: null,
     sentAt: 0,
     sentImageId: null,
     failedAt: 0,
+    rateLimited: false,
     paused: false
 };
 
 export function nextUploadAt(state: UploaderState): number | null {
     if (!state.running) return null;
-    if (state.failedAt > state.sentAt) return state.failedAt + RETRY_INTERVAL;
-    if (state.sentAt > 0) return state.sentAt + UPLOAD_INTERVAL;
+
+    const latest = Math.max(state.runningSince, state.sentAt, state.failedAt);
+    if (state.failedAt > 0 && latest === state.failedAt) return state.failedAt + RETRY_INTERVAL;
+    if (state.sentAt > 0 && latest === state.sentAt) return state.sentAt + UPLOAD_INTERVAL;
     return state.runningSince + FIRST_UPLOAD_DELAY;
+}
+
+export function isRateLimitError(error: unknown): boolean {
+    const text = typeof error === "string" ? error : String((error as { message?: unknown; })?.message ?? error ?? "");
+    return text.includes("retry_after");
 }
 
 export interface PlaybackOptions {

@@ -61,9 +61,16 @@ export function describeAir(inputs: AirInputs, text: Messages): AirStatus {
 
     const due = nextUploadAt(uploader);
 
-    if (uploader.failedAt > uploader.sentAt) {
+    if (uploader.failedAt > 0 && uploader.failedAt >= uploader.sentAt) {
         const retryIn = due !== null && due > now ? formatDuration(due - now) : null;
-        return { tone: "warning", headline: text.uploadFailed, detail: text.failedDetail(retryIn, seen) };
+        if (!seen) {
+            return { tone: "warning", headline: text.uploadFailed, detail: text.failedNoPreview(retryIn, uploader.rateLimited) };
+        }
+        return {
+            tone: sentLabel ? "live" : "warning",
+            headline: seen,
+            detail: text.sentDetail(formatDuration(now - uploader.sentAt), text.retryNote(retryIn, uploader.rateLimited))
+        };
     }
 
     if (!seen) {
