@@ -6,7 +6,7 @@
 
 import { DataStore } from "@api/index";
 
-import { forgetThumbs } from "./media";
+import { dropThumbs, thumbKey } from "./thumbs";
 import { createEmitter, logger } from "./utils";
 
 export const MAX_PROFILES = 5;
@@ -210,10 +210,10 @@ export async function removeImages(profileId: string, imageIds: ReadonlySet<stri
     const currentIndex = clampIndex(keptCurrent !== -1 ? keptCurrent : profile.currentIndex - removedBefore, images.length);
 
     await commit(updateProfile(profileId, p => ({ ...p, images, currentIndex })));
-    forgetThumbs(removed.map(image => image.id));
+    dropThumbs(removed.map(image => image.id));
 
     try {
-        await DataStore.delMany(removed.map(image => imageKey(image.id)));
+        await DataStore.delMany(removed.flatMap(image => [imageKey(image.id), thumbKey(image.id)]));
     } catch (error) {
         logger.error("Failed to delete image data", error);
     }

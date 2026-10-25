@@ -16,7 +16,6 @@ import { captureFrame, FrameSource, PLACEHOLDER_FRAME, VideoFrame } from "./fram
 import { registerHotkey, unregisterHotkey } from "./hotkey";
 import { T } from "./i18n";
 import { getActiveProfile, getProfiles, loadLibrary, unloadLibrary } from "./library";
-import { forgetAllThumbs } from "./media";
 import {
     ensureCustomThumbnail,
     isOwnStreamEvent,
@@ -34,6 +33,7 @@ import {
 } from "./onAir";
 import { DEFAULT_HOTKEY, PLUGIN_NAME, settings, unwatchSettings, watchSettings } from "./settings";
 import managedStyle from "./style.css?managed";
+import { forgetAllThumbs, warmThumbs } from "./thumbs";
 import { logger } from "./utils";
 
 const GALLERY_MODAL_KEY = "custom-stream-topq-gallery";
@@ -179,6 +179,9 @@ export default definePlugin({
 
         const active = getActiveProfile();
         logger.info(`Loaded ${getProfiles().length} profiles, "${active.name}" is active with ${active.images.length} images`);
+
+        const others = getProfiles().filter(profile => profile.id !== active.id);
+        void warmThumbs([...active.images, ...others.flatMap(profile => profile.images)]);
     },
 
     stop() {

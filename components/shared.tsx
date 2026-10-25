@@ -8,10 +8,10 @@ import { ApplicationStreamingStore, useEffect, useState, useStateFromStores } fr
 
 import { T } from "../i18n";
 import { findImage, getActiveProfile, libraryChanged, StoredImage } from "../library";
-import { loadThumb, peekThumb } from "../media";
 import { airChanged, getPendingImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
 import { UploaderState } from "../schedule";
 import { settings } from "../settings";
+import { loadThumb, peekThumb } from "../thumbs";
 import { cl, logger, useEmitter } from "../utils";
 
 export function Thumb({ image, className }: { image: StoredImage; className?: string; }) {
@@ -23,7 +23,7 @@ export function Thumb({ image, className }: { image: StoredImage; className?: st
         if (ready) return;
 
         let alive = true;
-        loadThumb(image.id, image.blob).then(
+        loadThumb(image).then(
             next => alive && setUrl(next),
             error => logger.error("Could not render a thumbnail", error)
         );
