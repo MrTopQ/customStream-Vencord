@@ -383,7 +383,7 @@
     background: #000;
     outline: 2px solid transparent;
     outline-offset: 2px;
-    cursor: pointer;
+    cursor: grab;
     content-visibility: auto;
     contain-intrinsic-size: auto 90px;
 }
@@ -406,6 +406,7 @@
 
 .vc-cs-tile-dragged {
     opacity: 0.35;
+    cursor: grabbing;
 }
 
 .vc-cs-thumb {

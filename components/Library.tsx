@@ -107,7 +107,7 @@ function TileView({ image, index, isNext, nextTag, isLive, isSending, isSelected
                 <button type="button" title={T.download(formatSize(image.blob.size))} onClick={e => { e.stopPropagation(); handlers.download(index); }}>
                     <DownloadIcon size={16} />
                 </button>
-                <button type="button" title="Delete" className={cl("tile-delete")} onClick={e => { e.stopPropagation(); handlers.remove(index); }}>
+                <button type="button" title={T.delete} className={cl("tile-delete")} onClick={e => { e.stopPropagation(); handlers.remove(index); }}>
                     <TrashIcon size={16} />
                 </button>
             </div>
@@ -129,14 +129,15 @@ export function Library({ profile, busy, onAdd, onView }: {
     const [selected, setSelected] = useState<ReadonlySet<string>>(() => new Set());
     const [drag, setDrag] = useState<{ from: number; over: number | null; } | null>(null);
     const anchorRef = useRef(0);
+    const dragFrom = useRef<number | null>(null);
 
     const live = getUploader().sentAt > 0 ? getSentImage()?.id ?? null : null;
     const sending = getPendingImage()?.id ?? null;
     const upcoming = getUpcomingIndex(profile);
     const { images } = profile;
 
-    const latest = useRef({ images, selected, drag, onView });
-    latest.current = { images, selected, drag, onView };
+    const latest = useRef({ images, selected, onView });
+    latest.current = { images, selected, onView };
 
     const [handlers] = useState<TileHandlers>(() => {
         const toggle = (index: number) => {
@@ -183,26 +184,31 @@ export function Library({ profile, busy, onAdd, onView }: {
                 if (image) void removeImages(profile.id, new Set([image.id]));
             },
             dragStart(event, index) {
+                event.stopPropagation();
                 event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", String(index + 1));
                 event.dataTransfer.setData(DRAG_TYPE, String(index));
+                dragFrom.current = index;
                 setDrag({ from: index, over: null });
             },
             dragOver(event, index) {
-                if (!latest.current.drag) return;
+                if (dragFrom.current === null) return;
                 event.preventDefault();
                 event.stopPropagation();
                 event.dataTransfer.dropEffect = "move";
-                setDrag(prev => (prev && prev.over !== index ? { ...prev, over: index } : prev));
+                setDrag(prev => (prev && prev.over !== index ? { ...prev, over: index } : prev ?? { from: dragFrom.current!, over: index }));
             },
             drop(event, index) {
-                const current = latest.current.drag;
-                if (!current) return;
+                const from = dragFrom.current;
+                if (from === null) return;
                 event.preventDefault();
                 event.stopPropagation();
+                dragFrom.current = null;
                 setDrag(null);
-                void moveImage(profile.id, current.from, index);
+                void moveImage(profile.id, from, index);
             },
             dragEnd() {
+                dragFrom.current = null;
                 setDrag(null);
             }
         };

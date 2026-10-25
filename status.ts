@@ -42,8 +42,10 @@ function describeNext({ now, sentLabel, upcomingLabel }: AirInputs, due: number 
     return text.nextUpdate(due > now ? formatDuration(due - now) : null, upcoming);
 }
 
-export function describeAir(inputs: AirInputs, text: Messages): AirStatus {
-    const { now, live, previewDisabled, uploader, sentLabel } = inputs;
+export function describeAir(rawInputs: AirInputs, text: Messages): AirStatus {
+    const { uploader } = rawInputs;
+    const inputs = { ...rawInputs, now: Math.max(rawInputs.now, uploader.sentAt, uploader.failedAt) };
+    const { now, live, previewDisabled, sentLabel } = inputs;
 
     if (!live) return describeOffline(inputs, text);
 
