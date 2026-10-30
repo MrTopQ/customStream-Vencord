@@ -169,7 +169,7 @@ function rememberDataUri(id: string, uri: string) {
     }
 }
 
-export async function prepareUpcoming(): Promise<void> {
+async function prepareUpcoming(): Promise<void> {
     if (!settings.store.replaceEnabled) return;
 
     const profile = getActiveProfile();

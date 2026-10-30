@@ -7,7 +7,6 @@
 export const FIRST_UPLOAD_DELAY = 1_000;
 export const UPLOAD_INTERVAL = 300_000;
 export const RETRY_INTERVAL = 60_000;
-export const VIEWER_CACHE_TIME = 120_000;
 
 export interface UploaderState {
     readonly running: boolean;

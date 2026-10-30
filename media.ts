@@ -12,7 +12,7 @@ const THUMB_HEIGHT = 216;
 const THUMB_QUALITY = 0.82;
 
 export const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
-export const MAX_FILE_SIZE = 8 * 1024 * 1024;
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
 
 export function isAcceptedFile(file: File): boolean {
     return ACCEPTED_TYPES.includes(file.type) && file.size <= MAX_FILE_SIZE;

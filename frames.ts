@@ -19,7 +19,7 @@ const MAX_FRAME_ATTEMPTS = 60;
 
 export const PLACEHOLDER_FRAME: VideoFrame = { data: new Uint8ClampedArray([0, 0, 0, 255]), width: 1, height: 1 };
 
-export function hasPixels(frame: VideoFrame | null | undefined): frame is VideoFrame {
+function hasPixels(frame: VideoFrame | null | undefined): frame is VideoFrame {
     if (!frame?.data?.length) return false;
 
     const { data } = frame;

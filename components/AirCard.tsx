@@ -16,7 +16,7 @@ function AirText({ view }: { view: AirView; }) {
     const status = describeAir({ ...view, now }, T);
 
     return (
-        <div className={cl("air-text")} aria-live="polite">
+        <div aria-live="polite">
             <div className={cl("air-headline", `tone-${status.tone}`)}>
                 <span className={cl("air-dot")} />
                 {status.headline}
