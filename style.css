@@ -256,6 +256,10 @@
     color: var(--text-strong, var(--header-primary));
 }
 
+.vc-cs-profile-drop {
+    box-shadow: inset 2px 0 0 var(--vc-cs-next);
+}
+
 .vc-cs-profile-name {
     max-width: 160px;
     overflow: hidden;
@@ -316,8 +320,26 @@
     color: var(--interactive-icon-hover, var(--interactive-hover));
 }
 
-.vc-cs-icon-button-danger:hover {
+.vc-cs-icon-button-danger {
     color: var(--vc-cs-live);
+}
+
+.vc-cs-icon-button-danger:hover {
+    background: color-mix(in srgb, var(--vc-cs-live) 16%, transparent);
+    color: var(--vc-cs-live);
+}
+
+.vc-cs-icon-button-muted,
+.vc-cs-icon-button-muted:hover {
+    background: none;
+    color: var(--interactive-icon-default, var(--interactive-normal));
+    opacity: 0.4;
+    cursor: default;
+}
+
+.vc-cs-health-list {
+    text-align: left;
+    line-height: 1.5;
 }
 
 .vc-cs-library {
@@ -363,10 +385,6 @@
 
 .vc-cs-toolbar-actions .vc-btn-base {
     gap: 6px;
-}
-
-.vc-cs-delete-all:hover {
-    color: var(--vc-cs-live);
 }
 
 .vc-cs-grid {
@@ -586,8 +604,58 @@
 }
 
 .vc-cs-footnote {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     color: var(--text-muted);
     font-size: 12px;
+}
+
+.vc-cs-health {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex: none;
+    padding-right: 12px;
+    border-right: 1px solid var(--vc-cs-border, var(--border-subtle));
+    cursor: default;
+}
+
+.vc-cs-health-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.7;
+}
+
+.vc-cs-health-partial {
+    color: var(--status-warning, #f0b232);
+}
+
+.vc-cs-health-partial .vc-cs-health-dot {
+    background: var(--status-warning, #f0b232);
+    opacity: 1;
+}
+
+.vc-cs-health-broken {
+    color: var(--status-danger, #f23f43);
+    font-weight: 600;
+}
+
+.vc-cs-health-broken .vc-cs-health-dot {
+    background: var(--status-danger, #f23f43);
+    opacity: 1;
+}
+
+.vc-cs-air-alert {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--status-danger, #f23f43) 16%, transparent);
+    color: var(--text-strong, var(--header-primary));
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.4;
 }
 
 .vc-cs-lightbox {
@@ -678,6 +746,17 @@
 .vc-cs-panel-icon-off .vc-cs-panel-icon-picture {
     fill: currentColor;
     opacity: 0.45;
+}
+
+.vc-cs-panel-icon-alert {
+    position: absolute;
+    top: -2px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--status-danger, #f23f43);
+    box-shadow: 0 0 0 2px var(--status-danger, #f23f43);
 }
 
 .vc-cs-panel-icon-live {

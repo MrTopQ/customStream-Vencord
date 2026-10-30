@@ -12,6 +12,7 @@ import { airChanged, getUploader } from "../onAir";
 import { settings } from "../settings";
 import { describeAir } from "../status";
 import { cl, useEmitter, useNow } from "../utils";
+import { useHealth } from "./Health";
 import { Thumb, useAirView } from "./shared";
 
 const DiscordPanelButton = findComponentByCodeLazy(".GREEN,positionKeyStemOverride:");
@@ -21,6 +22,7 @@ function PanelIcon() {
     const { replaceEnabled } = settings.use(["replaceEnabled"]);
     const live = useStateFromStores([ApplicationStreamingStore], () => ApplicationStreamingStore.getCurrentUserActiveStream() != null);
     const onAir = live && getUploader().sentAt > 0;
+    const swapBroken = useHealth().swapBroken && replaceEnabled;
 
     return (
         <span className={cl("panel-icon", { "panel-icon-off": !replaceEnabled })}>
@@ -34,7 +36,9 @@ function PanelIcon() {
                     d="M12 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm6 7-3-3-3 3-3-3-3 3v1h12v-1Z"
                 />
             </svg>
-            {onAir && <span className={cl("panel-icon-live")} />}
+            {swapBroken
+                ? <span className={cl("panel-icon-alert")} />
+                : onAir && <span className={cl("panel-icon-live")} />}
         </span>
     );
 }

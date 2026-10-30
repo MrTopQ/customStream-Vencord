@@ -10,7 +10,8 @@ import { LocaleStore } from "@webpack/common";
 import { en, type Messages } from "./locales/en";
 import { ru } from "./locales/ru";
 
-export const PLUGIN_NAME = "CustomStreamTopQ";
+export const PLUGIN_NAME = "CustomStream-Preview";
+export const OLD_PLUGIN_NAMES = ["CustomStreamTopQ"];
 export const AUTO_LANGUAGE = "auto";
 const FALLBACK_LOCALE = "en-US";
 const LOCALE_CACHE_MS = 1000;

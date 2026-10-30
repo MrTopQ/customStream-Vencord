@@ -7,6 +7,7 @@
 import { T } from "../i18n";
 import { describeAir } from "../status";
 import { cl, useNow } from "../utils";
+import { useHealth } from "./Health";
 import { ScreenIcon } from "./icons";
 import { AirView, Thumb, useAirView } from "./shared";
 
@@ -27,6 +28,7 @@ function AirText({ view }: { view: AirView; }) {
 
 export function AirCard() {
     const view = useAirView();
+    const health = useHealth();
     const sent = view.live && view.uploader.sentAt > 0;
     const caption = sent ? T.captionViewersSee : view.live && view.pendingImage ? T.captionSending : T.captionGoesFirst;
 
@@ -41,6 +43,7 @@ export function AirCard() {
             </figure>
 
             <div className={cl("air-body")}>
+                {health.swapBroken && view.replaceEnabled && <div className={cl("air-alert")}>{T.healthAlert}</div>}
                 <AirText view={view} />
                 <p className={cl("air-help")}>{T.howItWorks}</p>
             </div>

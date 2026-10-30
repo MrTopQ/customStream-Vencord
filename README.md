@@ -1,6 +1,6 @@
 # CustomStream-Vencord
 
-Vencord plugin that sends your own image as the stream preview instead of a frame of your screen. Profiles, slideshow, and a live view of what viewers see right now.
+Custom stream preview for Vencord. The plugin sends your own image as the Discord stream preview instead of a frame of your screen. Profiles, slideshow, and a live view of what viewers see right now.
 
 ## How the preview works
 
@@ -16,10 +16,12 @@ The button next to your avatar shows the same status on hover and opens the gall
 
 ## Features
 
-- Up to 5 profiles with 50 images each
+- Up to 6 profiles with 80 images each, drag the tabs to reorder them
 - Slideshow in order or random, random never repeats an image until all were shown
 - Click an image to send it next
-- Drag images to reorder, drop files or paste with Ctrl+V to add them
+- Drag images to reorder, or shuffle the whole profile at once
+- Drop files or paste with Ctrl+V to add them
+- Download a profile as a ZIP and add images from a ZIP
 - Ctrl or Shift click to select several images
 - `Alt+1` opens the gallery, the hotkey can be changed in the plugin settings
 - Previews keep updating while the streamed window is minimized
@@ -39,7 +41,7 @@ git clone https://github.com/MrTopQ/customStream-Vencord src/userplugins/customS
 pnpm build && pnpm inject
 ```
 
-`pnpm inject` is only needed once, when this Vencord is not patched into Discord yet. Restart Discord, then enable **CustomStreamTopQ** in Vencord settings, Plugins.
+`pnpm inject` is only needed once, when this Vencord is not patched into Discord yet. Restart Discord, then enable **CustomStream-Preview** in Vencord settings, Plugins. It was called CustomStreamTopQ before, your settings and images move over by themselves.
 
 ## Notes
 

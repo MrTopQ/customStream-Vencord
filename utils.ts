@@ -9,7 +9,7 @@ import { Logger } from "@utils/Logger";
 import { React } from "@webpack/common";
 
 export const cl = classNameFactory("vc-cs-");
-export const logger = new Logger("CustomStreamTopQ");
+export const logger = new Logger("CustomStream-Preview");
 
 export interface Emitter {
     emit(): void;

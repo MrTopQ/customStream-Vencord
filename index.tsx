@@ -5,6 +5,7 @@
  */
 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { migratePluginSettings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { ImageIcon } from "@components/Icons";
 import definePlugin from "@utils/types";
@@ -13,8 +14,9 @@ import { closeModal, Menu, openModal, UserStore } from "@webpack/common";
 import { GalleryModal } from "./components/GalleryModal";
 import { StreamPreviewPanelButton } from "./components/PanelButton";
 import { captureFrame, FrameSource, PLACEHOLDER_FRAME, VideoFrame } from "./frames";
+import { HealthPart, markPatched } from "./health";
 import { registerHotkey, unregisterHotkey } from "./hotkey";
-import { T } from "./i18n";
+import { OLD_PLUGIN_NAMES, T } from "./i18n";
 import { getActiveProfile, getProfiles, loadLibrary, unloadLibrary } from "./library";
 import {
     ensureCustomThumbnail,
@@ -36,7 +38,9 @@ import managedStyle from "./style.css?managed";
 import { forgetAllThumbs, warmThumbs } from "./thumbs";
 import { logger } from "./utils";
 
-const GALLERY_MODAL_KEY = "custom-stream-topq-gallery";
+migratePluginSettings(PLUGIN_NAME, ...OLD_PLUGIN_NAMES);
+
+const GALLERY_MODAL_KEY = "custom-stream-preview-gallery";
 let galleryOpen = false;
 
 function openGallery() {
@@ -78,6 +82,13 @@ function nextPreviewFrame(source: FrameSource, streamId: string): Promise<VideoF
     return willSendCustom() ? Promise.resolve(PLACEHOLDER_FRAME) : captureFrame(source, streamId);
 }
 
+function marked(part: HealthPart, build: (match: string, ...groups: string[]) => string) {
+    return (match: string, ...groups: string[]) => {
+        markPatched(part);
+        return build(match, ...groups);
+    };
+}
+
 const PanelButton = ErrorBoundary.wrap(
     (props: { nameplate?: unknown; }) => <StreamPreviewPanelButton nameplate={props?.nameplate} onOpen={openGallery} />,
     { noop: true }
@@ -97,7 +108,7 @@ export default definePlugin({
             find: "#{intl::USER_PROFILE_ACCOUNT_POPOUT_BUTTON_A11Y_LABEL}",
             replacement: {
                 match: /(children:\[)(.{0,150}?)(accountContainerRef)/,
-                replace: "$1$self.PanelButton(arguments[0]),$2$3"
+                replace: marked("panel", (_, open, between, ref) => `${open}$self.PanelButton(arguments[0]),${between}${ref}`)
             }
         },
         {
@@ -105,31 +116,31 @@ export default definePlugin({
             replacement: [
                 {
                     match: /(\i)\.getNextVideoOutputFrame\((\i)\)\.then\(/,
-                    replace: "$self.nextPreviewFrame($1,$2).then("
+                    replace: marked("frame", (_, engine, stream) => `$self.nextPreviewFrame(${engine},${stream}).then(`)
                 },
                 {
                     match: /if\(!(\i)\)try\{(?=.{0,300}?nextPreviewFrame)/,
-                    replace: "if(!$1||$self.willSendCustom())try{"
+                    replace: marked("pauseGate", (_, paused) => `if(!${paused}||$self.willSendCustom())try{`)
                 },
                 {
                     match: /(\i)\?(\i)\.start\(6e4,(\i)\):\2\.start\(3e5,\3\)/,
-                    replace: "($self.onUploadDone(),$1&&!$self.willSendCustom())?$2.start(6e4,$3):$2.start(3e5,$3)"
+                    replace: marked("settle", (_, paused, timer, again) => `($self.onUploadDone(),${paused}&&!$self.willSendCustom())?${timer}.start(6e4,${again}):${timer}.start(3e5,${again})`)
                 },
                 {
                     match: /subscribe\("STREAM_DELETE",(\i)\)/,
-                    replace: 'subscribe("STREAM_DELETE",e=>$self.isOwnStreamEvent(e)&&$1())'
+                    replace: marked("streamDelete", (_, stop) => `subscribe("STREAM_DELETE",e=>$self.isOwnStreamEvent(e)&&${stop}())`)
                 },
                 {
                     match: /(\i)\.toDataURL\("image\/jpeg"\)/,
-                    replace: '$self.pickThumbnail(()=>$1.toDataURL("image/jpeg"))'
+                    replace: marked("thumbnail", (_, canvas) => `$self.pickThumbnail(()=>${canvas}.toDataURL("image/jpeg"))`)
                 },
                 {
                     match: /\{thumbnail:(\i)\}/g,
-                    replace: "{thumbnail:$self.ensureCustomThumbnail($1)}"
+                    replace: marked("upload", (_, thumbnail) => `{thumbnail:$self.ensureCustomThumbnail(${thumbnail})}`)
                 },
                 {
                     match: /"Failed to post stream preview",(\i)\)/,
-                    replace: "$&,$self.onUploadFailed($1)"
+                    replace: marked("failure", (match, error) => `${match},$self.onUploadFailed(${error})`)
                 }
             ]
         }

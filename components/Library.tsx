@@ -6,17 +6,19 @@
 
 import { Button, TextButton } from "@components/Button";
 import { LazyComponent } from "@utils/lazyReact";
-import { Alerts, React, useCallback, useRef, useState } from "@webpack/common";
-import type { DragEvent } from "react";
+import { Alerts, ContextMenuApi, Menu, React, showToast, useCallback, useRef, useState } from "@webpack/common";
+import type { DragEvent, MouseEvent } from "react";
 
+import { imagesToZip, safeFileName } from "../archive";
 import { formatSize } from "../format";
 import { T } from "../i18n";
-import { MAX_IMAGES_PER_PROFILE, moveImage, Profile, removeImages, StoredImage } from "../library";
+import { MAX_IMAGES_PER_PROFILE, moveImage, Profile, removeImages, shuffleImages, StoredImage } from "../library";
 import { downloadBlob } from "../media";
 import { airChanged, chooseImage, getPendingImage, getSentImage, getUpcomingIndex, getUploader } from "../onAir";
 import { settings } from "../settings";
-import { cl, useEmitter } from "../utils";
-import { CheckIcon, DownloadIcon, ExpandIcon, PlusIcon, TrashIcon } from "./icons";
+import { cl, logger, useEmitter } from "../utils";
+import { HintButton } from "./HintButton";
+import { CheckIcon, DownloadIcon, ExpandIcon, MoreIcon, PlusIcon, TrashIcon } from "./icons";
 import { Thumb } from "./shared";
 
 const DRAG_TYPE = "application/x-vc-cs-image";
@@ -101,15 +103,15 @@ function TileView({ image, index, isNext, nextTag, isLive, isSending, isSelected
             </button>
 
             <div className={cl("tile-actions")}>
-                <button type="button" title={T.view} onClick={e => { e.stopPropagation(); handlers.view(index); }}>
+                <HintButton hint={T.view} className="" onClick={() => handlers.view(index)}>
                     <ExpandIcon size={16} />
-                </button>
-                <button type="button" title={T.download(formatSize(image.blob.size))} onClick={e => { e.stopPropagation(); handlers.download(index); }}>
+                </HintButton>
+                <HintButton hint={T.download(formatSize(image.blob.size))} className="" onClick={() => handlers.download(index)}>
                     <DownloadIcon size={16} />
-                </button>
-                <button type="button" title={T.delete} className={cl("tile-delete")} onClick={e => { e.stopPropagation(); handlers.remove(index); }}>
+                </HintButton>
+                <HintButton hint={T.delete} className={cl("tile-delete")} onClick={() => handlers.remove(index)}>
                     <TrashIcon size={16} />
-                </button>
+                </HintButton>
             </div>
         </div>
     );
@@ -117,10 +119,11 @@ function TileView({ image, index, isNext, nextTag, isLive, isSending, isSelected
 
 const Tile = LazyComponent(() => React.memo(TileView));
 
-export function Library({ profile, busy, onAdd, onView }: {
+export function Library({ profile, busy, onAdd, onAddArchive, onView }: {
     profile: Profile;
     busy: boolean;
     onAdd(): void;
+    onAddArchive(): void;
     onView(index: number): void;
 }) {
     useEmitter(airChanged);
@@ -246,6 +249,37 @@ export function Library({ profile, busy, onAdd, onView }: {
 
     const full = images.length >= MAX_IMAGES_PER_PROFILE;
 
+    const confirmShuffle = () => Alerts.show({
+        title: T.shuffleTitle(profile.name),
+        body: T.shuffleBody,
+        confirmText: T.shuffleConfirm,
+        cancelText: T.cancel,
+        onConfirm: async () => {
+            await shuffleImages(profile.id);
+            showToast({ text: T.shuffled, variant: "success" });
+        }
+    });
+
+    const exportZip = async () => {
+        try {
+            const archive = await imagesToZip(images);
+            downloadBlob(archive, `${safeFileName(profile.name)}.zip`);
+        } catch (error) {
+            logger.error("Could not build the archive", error);
+            showToast({ text: T.exportFailed, variant: "critical" });
+        }
+    };
+
+    const openMore = (event: MouseEvent<HTMLButtonElement>) => ContextMenuApi.openContextMenu(event, () => (
+        <Menu.Menu navId="vc-cs-more" onClose={ContextMenuApi.closeContextMenu} aria-label={T.moreActions}>
+            <Menu.MenuItem id="vc-cs-shuffle" label={T.shuffleAll} disabled={images.length < 2} action={confirmShuffle} />
+            <Menu.MenuItem id="vc-cs-export" label={T.exportZip} disabled={images.length === 0} action={() => void exportZip()} />
+            <Menu.MenuItem id="vc-cs-import" label={T.importZip} disabled={busy || full} action={onAddArchive} />
+            <Menu.MenuSeparator />
+            <Menu.MenuItem id="vc-cs-delete-all" label={T.deleteAll} color="danger" disabled={images.length === 0} action={deleteAll} />
+        </Menu.Menu>
+    ));
+
     return (
         <section className={cl("library")}>
             <div className={cl("toolbar")}>
@@ -264,7 +298,9 @@ export function Library({ profile, busy, onAdd, onView }: {
                             {images.length > 1 && <span className={cl("toolbar-hint")}>{slideshowEnabled ? T.hintSendNext : T.hintUse}</span>}
                         </span>
                         <div className={cl("toolbar-actions")}>
-                            {images.length > 0 && <TextButton variant="secondary" className={cl("delete-all")} onClick={deleteAll}>Delete all</TextButton>}
+                            <HintButton hint={T.moreActions} onClick={openMore}>
+                                <MoreIcon size={18} />
+                            </HintButton>
                             <Button size="small" disabled={busy || full} onClick={onAdd}>
                                 <PlusIcon size={16} />
                                 {busy ? T.adding : T.addImages}

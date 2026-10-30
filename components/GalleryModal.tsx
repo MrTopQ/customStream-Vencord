@@ -8,12 +8,14 @@ import { RenderModalProps } from "@vencord/discord-types";
 import { Modal, showToast, useEffect, useRef, useState } from "@webpack/common";
 import type { DragEvent } from "react";
 
+import { imagesFromZip, isArchive, MAX_ARCHIVE_SIZE } from "../archive";
 import { T } from "../i18n";
 import { addImages, getActiveProfile, isStorageReady, libraryChanged, MAX_IMAGES_PER_PROFILE } from "../library";
 import { ACCEPTED_TYPES, isAcceptedFile, toPreviewImage } from "../media";
 import { settings } from "../settings";
 import { cl, logger, useEmitter } from "../utils";
 import { AirCard } from "./AirCard";
+import { HealthBadge } from "./Health";
 import { Library } from "./Library";
 import { Lightbox } from "./Lightbox";
 import { PlaybackControls } from "./PlaybackControls";
@@ -38,26 +40,49 @@ export function GalleryModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const [dropDepth, setDropDepth] = useState(0);
     const busyRef = useRef(false);
 
-    const importFiles = async (files: File[]) => {
-        if (busyRef.current || files.length === 0) return;
+    const expandArchives = async (files: File[]): Promise<File[]> => {
+        const result: File[] = [];
+        for (const file of files) {
+            if (!isArchive(file)) {
+                result.push(file);
+                continue;
+            }
+            try {
+                if (file.size > MAX_ARCHIVE_SIZE) throw new Error("Archive is too large");
+                const images = await imagesFromZip(file);
+                if (images.length === 0) showToast({ text: T.zipNoImages, variant: "critical" });
+                result.push(...images);
+            } catch (error) {
+                logger.error("Could not open the archive", error);
+                showToast({ text: T.zipReadFailed, variant: "critical" });
+            }
+        }
+        return result;
+    };
+
+    const importFiles = async (incoming: File[]) => {
+        if (busyRef.current || incoming.length === 0) return;
 
         const target = getActiveProfile();
-        const room = MAX_IMAGES_PER_PROFILE - target.images.length;
-        if (room <= 0) {
+        if (target.images.length >= MAX_IMAGES_PER_PROFILE) {
             showToast({ text: T.profileFull(target.name, MAX_IMAGES_PER_PROFILE), variant: "critical" });
-            return;
-        }
-
-        const accepted = files.filter(isAcceptedFile);
-        const skipped = files.length - accepted.length;
-        if (accepted.length === 0) {
-            showToast({ text: T.onlyImages, variant: "critical" });
             return;
         }
 
         busyRef.current = true;
         setBusy(true);
         try {
+            const files = await expandArchives(incoming);
+            if (files.length === 0) return;
+
+            const accepted = files.filter(isAcceptedFile);
+            const skipped = files.length - accepted.length;
+            if (accepted.length === 0) {
+                showToast({ text: T.onlyImages, variant: "critical" });
+                return;
+            }
+
+            const room = MAX_IMAGES_PER_PROFILE - target.images.length;
             const blobs: Blob[] = [];
             for (const file of accepted.slice(0, room)) {
                 blobs.push(await toPreviewImage(file));
@@ -78,10 +103,10 @@ export function GalleryModal({ rootProps }: { rootProps: RenderModalProps; }) {
     const importRef = useRef(importFiles);
     importRef.current = importFiles;
 
-    const pickFiles = () => {
+    const pickFiles = (accept = [...ACCEPTED_TYPES, ".zip"].join(",")) => {
         const input = document.createElement("input");
         input.type = "file";
-        input.accept = ACCEPTED_TYPES.join(",");
+        input.accept = accept;
         input.multiple = true;
         input.onchange = () => {
             if (input.files?.length) void importRef.current([...input.files]);
@@ -135,8 +160,11 @@ export function GalleryModal({ rootProps }: { rootProps: RenderModalProps; }) {
             subtitle={T.modalSubtitle}
             actionBarInput={
                 <span className={cl("footnote")}>
-                    {isStorageReady() ? T.storedLocally : T.storageFailed}
-                    {hotkey && ` ${T.hotkeyOpens(hotkey)}`}
+                    <HealthBadge />
+                    <span>
+                        {isStorageReady() ? T.storedLocally : T.storageFailed}
+                        {hotkey && ` ${T.hotkeyOpens(hotkey)}`}
+                    </span>
                 </span>
             }
             actions={[{ text: T.done, variant: "primary", onClick: rootProps.onClose }]}
@@ -145,7 +173,7 @@ export function GalleryModal({ rootProps }: { rootProps: RenderModalProps; }) {
                 <AirCard />
                 <PlaybackControls />
                 <ProfileTabs />
-                <Library key={profile.id} profile={profile} busy={busy} onAdd={pickFiles} onView={setViewing} />
+                <Library key={profile.id} profile={profile} busy={busy} onAdd={() => pickFiles()} onAddArchive={() => pickFiles(".zip,application/zip")} onView={setViewing} />
 
                 {dropDepth > 0 && (
                     <div className={cl("dropzone")}>

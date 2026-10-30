@@ -61,6 +61,12 @@ export const ChevronIcon = ({ direction, ...props }: IconProps & { direction: "l
     </Svg>
 );
 
+export const MoreIcon = (props: IconProps) => (
+    <Svg {...props}>
+        <path d="M6 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z" />
+    </Svg>
+);
+
 export const ScreenIcon = (props: IconProps) => (
     <Svg {...props}>
         <path d="M3 4h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7v2h3v2H7v-2h3v-2H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Zm1 2v9h16V6H4Z" />

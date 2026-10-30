@@ -9,8 +9,8 @@ import { DataStore } from "@api/index";
 import { dropThumbs, thumbKey } from "./thumbs";
 import { createEmitter, logger } from "./utils";
 
-export const MAX_PROFILES = 5;
-export const MAX_IMAGES_PER_PROFILE = 50;
+export const MAX_PROFILES = 6;
+export const MAX_IMAGES_PER_PROFILE = 80;
 export const MAX_PROFILE_NAME = 40;
 export const DEFAULT_PROFILE_ID = "default";
 
@@ -231,6 +231,30 @@ export function moveImage(profileId: string, from: number, to: number): Promise<
     const current = profile.images[profile.currentIndex];
     const currentIndex = current ? images.indexOf(current) : 0;
     return commit(updateProfile(profileId, p => ({ ...p, images, currentIndex })));
+}
+
+export function shuffleImages(profileId: string, random: () => number = Math.random): Promise<void> {
+    const profile = profiles.find(p => p.id === profileId);
+    if (!profile || profile.images.length < 2) return Promise.resolve();
+
+    const images = [...profile.images];
+    for (let i = images.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1));
+        [images[i], images[j]] = [images[j], images[i]];
+    }
+
+    const current = profile.images[profile.currentIndex];
+    const currentIndex = current ? images.indexOf(current) : 0;
+    return commit(updateProfile(profileId, p => ({ ...p, images, currentIndex })));
+}
+
+export function moveProfile(from: number, to: number): Promise<void> {
+    if (from === to || from < 0 || to < 0 || from >= profiles.length || to >= profiles.length) return Promise.resolve();
+
+    const next = [...profiles];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    return commit(next);
 }
 
 function bytesToBlob(image: LegacyByteImage): Blob {
