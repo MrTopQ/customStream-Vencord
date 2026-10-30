@@ -4,22 +4,25 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { DataStore } from "@api/index";
 import { UserStore } from "@webpack/common";
 
 import { getActiveProfile, libraryChanged, Profile, setCurrentIndex, StoredImage } from "./library";
 import { blobToDataUrl } from "./media";
-import { IDLE_UPLOADER, isRateLimitError, nextIndex, shuffledIds, UploaderState } from "./schedule";
+import { IDLE_UPLOADER, isRateLimitError, nextIndex, shouldHold, shuffledIds, UploaderState } from "./schedule";
 import { settings, settingsChanged } from "./settings";
 import { createEmitter, logger } from "./utils";
 
 const DATA_URI_CACHE_SIZE = 3;
+const LAST_SENT_KEY = "CustomStreamTopQ_LastSent";
 
 export const airChanged = createEmitter();
 
 let uploader: UploaderState = IDLE_UPLOADER;
 let sentImage: StoredImage | null = null;
 let pending: { image: StoredImage | null; } | null = null;
-let hold = true;
+let lastSentId: string | null = null;
+let picked = false;
 let bag: { profileId: string; ids: string[]; } = { profileId: "", ids: [] };
 let lastReturned: string | null = null;
 const dataUris = new Map<string, string>();
@@ -52,7 +55,6 @@ export function onUploaderStarted(streamKey: string | null) {
         pending = null;
     }
 
-    hold = true;
     setUploader({
         ...(sameStream ? uploader : IDLE_UPLOADER),
         running: true,
@@ -73,7 +75,6 @@ export function onUploaderStopped() {
 export function onStreamEnded() {
     pending = null;
     sentImage = null;
-    hold = true;
     setUploader({ ...IDLE_UPLOADER, paused: uploader.paused });
 }
 
@@ -86,12 +87,22 @@ export function onUploadDone() {
 
     sentImage = pending.image;
     pending = null;
+    if (sentImage) rememberSent(sentImage.id);
     setUploader({ ...uploader, running: true, sentAt: Date.now(), sentImageId: sentImage?.id ?? null, failedAt: 0, rateLimited: false });
+}
+
+function rememberSent(id: string) {
+    const profile = getActiveProfile();
+    if (profile.images[profile.currentIndex]?.id === id) picked = false;
+    schedulePrepare();
+    if (id === lastSentId) return;
+
+    lastSentId = id;
+    DataStore.set(LAST_SENT_KEY, id).catch(error => logger.error("Could not save the last sent image", error));
 }
 
 export function onUploadFailed(error?: unknown) {
     pending = null;
-    hold = true;
     setUploader({ ...uploader, running: true, failedAt: Date.now(), rateLimited: isRateLimitError(error) });
 }
 
@@ -119,10 +130,18 @@ function peekShuffled(profile: Profile): string | null {
 }
 
 export function getUpcomingIndex(profile: Profile = getActiveProfile()): number {
+    return upcomingAfter(profile, pending?.image?.id ?? lastSentId);
+}
+
+function upcomingAfter(profile: Profile, sentId: string | null): number {
     return nextIndex(
         profile.images.length,
         profile.currentIndex,
-        { slideshow: settings.store.slideshowEnabled, random: settings.store.slideshowRandom, hold },
+        {
+            slideshow: settings.store.slideshowEnabled,
+            random: settings.store.slideshowRandom,
+            hold: shouldHold(profile.images[profile.currentIndex]?.id ?? null, sentId, picked)
+        },
         () => {
             const id = peekShuffled(profile);
             return id ? profile.images.findIndex(image => image.id === id) : -1;
@@ -134,7 +153,7 @@ export function chooseImage(index: number) {
     const profile = getActiveProfile();
     if (index < 0 || index >= profile.images.length) return;
 
-    hold = true;
+    picked = true;
     void setCurrentIndex(profile.id, index);
     airChanged.emit();
     schedulePrepare();
@@ -182,7 +201,7 @@ function markPending(image: StoredImage | null) {
 
 export function pickThumbnail(makeOriginal: () => string): string {
     const profile = getActiveProfile();
-    const upcoming = settings.store.replaceEnabled ? profile.images[getUpcomingIndex(profile)] : undefined;
+    const upcoming = settings.store.replaceEnabled ? profile.images[upcomingAfter(profile, lastSentId)] : undefined;
 
     let chosen = upcoming && dataUris.has(upcoming.id) ? upcoming : undefined;
     if (upcoming && !chosen) {
@@ -199,7 +218,6 @@ export function pickThumbnail(makeOriginal: () => string): string {
 
     const chosenId = chosen.id;
     if (bag.profileId === profile.id) bag = { ...bag, ids: bag.ids.filter(id => id !== chosenId) };
-    hold = false;
 
     void setCurrentIndex(profile.id, profile.images.indexOf(chosen));
     markPending(chosen);
@@ -215,21 +233,23 @@ export function ensureCustomThumbnail(value: string): string {
 }
 
 let unsubscribers: (() => void)[] = [];
-let activeProfileId: string | null = null;
 
-function onLibraryChanged() {
-    const { id } = getActiveProfile();
-    if (id !== activeProfileId) {
-        activeProfileId = id;
-        hold = true;
+async function loadLastSent() {
+    try {
+        const stored = await DataStore.get<string>(LAST_SENT_KEY);
+        if (stored !== undefined) return stored;
+    } catch (error) {
+        logger.error("Could not read the last sent image", error);
     }
-    schedulePrepare();
+
+    const profile = getActiveProfile();
+    return profile.images[profile.currentIndex]?.id ?? null;
 }
 
-export function startOnAir() {
-    activeProfileId = getActiveProfile().id;
+export async function startOnAir() {
+    lastSentId = await loadLastSent();
     unsubscribers = [
-        libraryChanged.subscribe(onLibraryChanged),
+        libraryChanged.subscribe(schedulePrepare),
         settingsChanged.subscribe(() => {
             schedulePrepare();
             airChanged.emit();
@@ -244,9 +264,9 @@ export function stopOnAir() {
     uploader = IDLE_UPLOADER;
     sentImage = null;
     pending = null;
-    hold = true;
+    lastSentId = null;
+    picked = false;
     bag = { profileId: "", ids: [] };
     lastReturned = null;
-    activeProfileId = null;
     dataUris.clear();
 }

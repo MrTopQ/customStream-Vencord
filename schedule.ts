@@ -51,6 +51,10 @@ export interface PlaybackOptions {
     readonly hold: boolean;
 }
 
+export function shouldHold(currentId: string | null, lastSentId: string | null, picked: boolean): boolean {
+    return picked || currentId == null || currentId !== lastSentId;
+}
+
 export function nextIndex(count: number, current: number, options: PlaybackOptions, peekRandom: () => number): number {
     if (count <= 0) return -1;
 
