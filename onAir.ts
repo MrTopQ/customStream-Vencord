@@ -8,7 +8,7 @@ import { DataStore } from "@api/index";
 import { UserStore } from "@webpack/common";
 
 import { getActiveProfile, libraryChanged, Profile, setCurrentIndex, StoredImage } from "./library";
-import { blobToDataUrl } from "./media";
+import { toUploadDataUrl } from "./media";
 import { IDLE_UPLOADER, isRateLimitError, nextIndex, shouldHold, shuffledIds, UploaderState } from "./schedule";
 import { settings, settingsChanged } from "./settings";
 import { createEmitter, logger } from "./utils";
@@ -177,7 +177,7 @@ async function prepareUpcoming(): Promise<void> {
     if (!image || dataUris.has(image.id)) return;
 
     try {
-        rememberDataUri(image.id, await blobToDataUrl(image.blob));
+        rememberDataUri(image.id, await toUploadDataUrl(image.blob));
     } catch (error) {
         logger.error("Could not prepare the next preview image", error);
     }

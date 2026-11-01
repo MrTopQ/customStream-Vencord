@@ -10,6 +10,8 @@ const PREVIEW_QUALITY = 0.7;
 const THUMB_WIDTH = 384;
 const THUMB_HEIGHT = 216;
 const THUMB_QUALITY = 0.82;
+const UPLOAD_MAX_WIDTH = 512;
+const UPLOAD_MAX_HEIGHT = 288;
 
 export const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_FILE_SIZE = 8 * 1024 * 1024;
@@ -47,13 +49,32 @@ export function makeThumbnail(image: Blob): Promise<Blob> {
     return renderCover(image, THUMB_WIDTH, THUMB_HEIGHT, THUMB_QUALITY);
 }
 
-export function blobToDataUrl(blob: Blob): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(blob);
-    });
+export function discordPreviewSize(width: number, height: number) {
+    const scale = Math.min(UPLOAD_MAX_WIDTH / width, UPLOAD_MAX_HEIGHT / height);
+    return { width: Math.trunc(width * scale), height: Math.trunc(height * scale) };
+}
+
+export async function toUploadDataUrl(image: Blob): Promise<string> {
+    const bitmap = await createImageBitmap(image);
+    try {
+        const full = document.createElement("canvas");
+        full.width = bitmap.width;
+        full.height = bitmap.height;
+        full.getContext("2d")?.drawImage(bitmap, 0, 0);
+
+        const size = discordPreviewSize(bitmap.width, bitmap.height);
+        const canvas = document.createElement("canvas");
+        canvas.width = size.width;
+        canvas.height = size.height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas is not available");
+
+        ctx.drawImage(full, 0, 0, bitmap.width, bitmap.height, 0, 0, size.width, size.height);
+        return canvas.toDataURL("image/jpeg");
+    } finally {
+        bitmap.close();
+    }
 }
 
 export function downloadBlob(blob: Blob, fileName: string) {
